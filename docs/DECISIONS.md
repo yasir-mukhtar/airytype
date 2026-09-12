@@ -27,3 +27,7 @@ Use origin-wide Web Locks with no timeout stealing. Secondary tabs remain read-o
 ## 2026-09-12 — Separate Worker and browser type environments
 
 Generate Cloudflare runtime bindings from `wrangler.jsonc`, then typecheck them using `tsconfig.worker.json`. Keep generated Worker globals out of the browser compiler to avoid DOM/global type collisions. Unit tests import the pure Worker router; only the entrypoint references generated bindings.
+
+## 2026-09-12 — Serialize cloud acknowledgements through the live repository
+
+The handoff continuation authorizes useful local coordinator/failure-injection work when staging is unavailable. Implemented that bounded AT-P4-01/02 slice without enabling account UI or moving preview data. Journal writes and sync persistence now share a repository queue; live memory inherits committed acknowledgement metadata before another journal write can restore stale fields. Acknowledged is an internal write-receipt state, not a “Synced” UI claim. The external account/session lifecycle, coordinated logout and hosted verification remain pending. See [coordinator evidence](verification/COORDINATOR_2026-09-12.md).

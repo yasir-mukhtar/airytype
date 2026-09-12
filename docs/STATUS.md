@@ -4,6 +4,12 @@ Sprint: 12 September 2026, 13:16–13:58 Asia/Jakarta. Starting branch `main`, c
 
 **Runnable local development preview; the end-to-end public-release plan is not complete. No production deployment or beta release is claimed.**
 
+## Latest continuation — 12 September 2026
+
+Implemented the outside-React account write coordinator and serialized repository/journal acknowledgement boundary for AT-P4-01/02. Verified late-generation preservation, exact retry, atomic rollback, session fencing and bounded request concurrency. `npm run check` now passes **93 tests in 12 files**, types, lint and build; production notebook **8/8** and native Chromium journal **1/1** pass. See [current evidence and remaining integration](verification/COORDINATOR_2026-09-12.md).
+
+No staging settings are configured. Account UI, verified-session namespace lifecycle, coordinated logout/cancellation, remote freshness/reconciliation and hosted create/read/reload remain pending. The notebook is still local-only; gates remain open. Changes from this continuation are not committed or pushed.
+
 ## Implementation
 
 | Work | State | Evidence / remaining boundary |
@@ -13,7 +19,7 @@ Sprint: 12 September 2026, 13:16–13:58 Asia/Jakarta. Starting branch `main`, c
 | P1 writing engine | Implemented; partial verification | Nine independent modes, true wrapped-row emphasis, sentence bounds, anchors/manual scroll, undo, external replacement, over-limit preservation. Chromium passes; native Safari/IME and founder writing judgment pending. G1 not passed. |
 | P2 local durability | Implemented; partial verification | Bounded journal, exact-generation status, origin-wide lock, failed-save memory preservation, restart, exact exports, tab ownership. Chromium strict hint observed. Broader durability/input checks pending. G2 not fully passed. |
 | P3 / AT-P4-01–02 cloud write foundations | Implemented—not verified as an integrated cloud workflow | SQL locked CAS, receipts, coherent reads, quotas, verified-owner policies, immutable sealed requests, atomic late ack, pinned-account transport, auth helpers. Notebook remains local. No hosted auth/sync test. |
-| AT-P4-03–05 reconciliation/recovery | Partial foundations | Epoch-protection/fencing primitives and recovery SQL exist. Full scheduler/reconciliation, complete conflict identity transition, coordinated auth UI/logout, checkpoint restoration/promotion, hosted multi-device testing are pending. |
+| AT-P4-03–05 reconciliation/recovery | Partial foundations | Epoch-protection/fencing primitives and recovery SQL exist. Write scheduler implemented locally; full reconciliation, complete conflict identity transition, coordinated auth UI/logout, checkpoint restoration/promotion, hosted multi-device testing are pending. |
 | P5 daily workflow | Local preview implemented | Notes, folders create/rename/move/delete-empty, search, imports, exports, Trash/restore. Not connected to cloud; staged cloud import, cloud dirty overlays/continuations and terminating remote export are pending. |
 | P6 safety/operations | Planned | Permanent deletion, encrypted external receipts, backup automation/alerts, restoration/Auth sanitization, incident drills, SMTP, invitations, support and privacy gates are unimplemented/unverified. |
 | P7 public breadth | Backend publication scaffold and local read-only responsive UI | Publishing defaults closed. No connected publication UI or cloud mobile account access. Beta observation and production input/device tests pending. |

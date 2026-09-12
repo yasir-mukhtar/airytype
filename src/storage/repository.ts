@@ -1,3 +1,10 @@
+import { SyncPersistence } from '../sync/persistence';
+import {
+  applyAckToDraft,
+  sameCanonicalState,
+  type MutationAcknowledgement,
+} from '../sync/protocol';
+import type { CallbackFence, SealedMutation } from './types';
 import { AiryDatabase } from './database';
 import { BoundedJournal } from './journal';
 import { OriginWriterLease, type WriterLease } from './writer-lock';
@@ -53,6 +60,7 @@ export class LocalRepository {
     error: null,
   };
   private journal: BoundedJournal<NoteRecord>;
+  private persistenceQueue: Promise<unknown> = Promise.resolve();
 
   constructor(options: RepositoryOptions = {}) {
     this.accountId = options.accountId ?? LOCAL_ACCOUNT_ID;
@@ -60,31 +68,47 @@ export class LocalRepository {
     this.lease = options.lease ?? new OriginWriterLease();
     this.journal = new BoundedJournal({
       delayMs: options.journalDelayMs,
-      write: async (record) => {
-        this.assertWriter();
-        await this.database.transaction(
-          'rw',
-          this.database.drafts,
-          this.database.intents,
-          this.database.bases,
-          async () => {
-            // A reply may advance the base while this snapshot waits to be written.
-            const base = await this.database.bases.get([
-              this.accountId,
-              record.id,
-            ]);
-            await this.database.drafts.put({
-              ...record,
-              baseVersion: base?.version ?? record.baseVersion,
-            });
-            await this.database.intents.put({
-              accountId: this.accountId,
-              noteId: record.id,
-              generation: record.generation,
-            });
-          },
-        );
-      },
+      write: (record) =>
+        this.serializePersistence(async () => {
+          this.assertWriter();
+          // Resolve after queued acknowledgements have corrected live metadata.
+          Object.assign(record, this.notes.get(record.id) ?? record);
+          await this.database.transaction(
+            'rw',
+            this.database.drafts,
+            this.database.intents,
+            this.database.bases,
+            async () => {
+              // A reply may advance the base while this snapshot waits to be written.
+              const base = await this.database.bases.get([
+                this.accountId,
+                record.id,
+              ]);
+              const persisted = await this.database.drafts.get([
+                this.accountId,
+                record.id,
+              ]);
+              if (
+                persisted &&
+                persisted.generation === record.generation &&
+                persisted.writerId === record.writerId &&
+                persisted.baseVersion === record.baseVersion &&
+                persisted.kind === record.kind &&
+                sameCanonicalState(persisted, record)
+              )
+                return;
+              await this.database.drafts.put({
+                ...record,
+                baseVersion: base?.version ?? record.baseVersion,
+              });
+              await this.database.intents.put({
+                accountId: this.accountId,
+                noteId: record.id,
+                generation: record.generation,
+              });
+            },
+          );
+        }),
       committed: (record) => {
         this.committed.set(record.id, record.generation);
         this.failed.delete(record.id);
@@ -331,6 +355,58 @@ export class LocalRepository {
     if (this.snapshot.mode === 'writer') await this.journal.flush();
   }
 
+  private serializePersistence<T>(action: () => Promise<T>): Promise<T> {
+    const result = this.persistenceQueue.then(action);
+    this.persistenceQueue = result.catch(() => {});
+    return result;
+  }
+
+  /** The session supplier must be invalidated synchronously on session loss. */
+  private syncPersistence(
+    currentFence: () => CallbackFence | null,
+  ): SyncPersistence {
+    return new SyncPersistence(this.database, () => {
+      const fence = currentFence();
+      if (
+        this.closing ||
+        this.snapshot.mode !== 'writer' ||
+        !fence ||
+        fence.accountId !== this.accountId ||
+        fence.writerId !== this.writerId ||
+        this.accountId === LOCAL_ACCOUNT_ID
+      )
+        return null;
+      return fence;
+    });
+  }
+
+  async sealForSync(
+    noteId: string,
+    fence: CallbackFence,
+    currentFence: () => CallbackFence | null,
+  ): Promise<Readonly<SealedMutation>> {
+    this.assertEditable();
+    await this.flush();
+    return this.serializePersistence(() =>
+      this.syncPersistence(currentFence).seal(noteId, fence),
+    );
+  }
+
+  acknowledgeSync(
+    request: Readonly<SealedMutation>,
+    ack: MutationAcknowledgement,
+    fence: CallbackFence,
+    currentFence: () => CallbackFence | null,
+  ): Promise<void> {
+    return this.serializePersistence(async () => {
+      await this.syncPersistence(currentFence).acknowledge(request, ack, fence);
+      const current = this.notes.get(request.noteId);
+      if (current)
+        this.notes.set(current.id, applyAckToDraft(current, request, ack));
+      this.organizationChanged();
+    });
+  }
+
   private validateFolder(folderId: string | null): void {
     if (folderId && !this.folders.has(folderId))
       throw new Error('That folder no longer exists.');
@@ -505,6 +581,7 @@ export class LocalRepository {
       this.closing = false;
       throw error; // Keep ownership and the tab's memory if local persistence fails.
     }
+    await this.persistenceQueue;
     this.channel?.close();
     this.database.close();
     await this.lease.release();

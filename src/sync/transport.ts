@@ -1,3 +1,4 @@
+import { SyncPause, syncFailure } from './errors';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BaseRecord, SealedMutation } from '../storage/types';
 import type {
@@ -13,8 +14,8 @@ export class SupabaseSyncTransport implements SyncTransport {
   ) {}
 
   async getServiceState(): Promise<ServiceState> {
-    const { data, error } = await this.client.rpc('get_service_state');
-    if (error) throw error;
+    const { data, error, status } = await this.client.rpc('get_service_state');
+    if (error) throw syncFailure(error, status);
     return data as ServiceState;
   }
 
@@ -24,7 +25,7 @@ export class SupabaseSyncTransport implements SyncTransport {
     if (request.accountId !== this.accountId)
       throw new Error('This request belongs to another account.');
     const authorization = await this.accountAuthorization();
-    const { data, error } = await this.client
+    const { data, error, status } = await this.client
       .rpc(request.operation === 'create' ? 'create_note' : 'save_note', {
         p_request: {
           protocol: request.protocol,
@@ -38,16 +39,16 @@ export class SupabaseSyncTransport implements SyncTransport {
         },
       })
       .setHeader('Authorization', authorization);
-    if (error) throw error;
+    if (error) throw syncFailure(error, status);
     return data as MutationAcknowledgement;
   }
 
   async getNote(noteId: string): Promise<BaseRecord> {
     const authorization = await this.accountAuthorization();
-    const { data, error } = await this.client
+    const { data, error, status } = await this.client
       .rpc('get_note', { p_note_id: noteId })
       .setHeader('Authorization', authorization);
-    if (error) throw error;
+    if (error) throw syncFailure(error, status);
     if (!data) throw new Error('The remote note is missing.');
     const row = data as {
       id: string;
@@ -73,7 +74,10 @@ export class SupabaseSyncTransport implements SyncTransport {
   private async accountAuthorization(): Promise<string> {
     const { data, error } = await this.client.auth.getSession();
     if (error || !data.session || data.session.user.id !== this.accountId) {
-      throw new Error('Sign in to the same account to resume this notebook.');
+      throw new SyncPause(
+        'session',
+        'Sign in to the same account to resume this notebook.',
+      );
     }
     // Pin the token for this request. The SDK's shared session can change between
     // validation and fetch; its default dynamic token must not upload this body's

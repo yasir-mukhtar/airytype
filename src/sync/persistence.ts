@@ -162,7 +162,10 @@ export class SyncPersistence {
         return { clean, base };
       },
     );
-    this.assertFence(callbackFence);
+    // The transaction has committed under its fence. Return that fact even if
+    // the session changes in the completion microtask: the account-bound
+    // repository must reflect the committed metadata before its next journal
+    // write. The coordinator independently fences further network scheduling.
     return result;
   }
 }
