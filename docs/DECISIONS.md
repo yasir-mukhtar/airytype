@@ -31,3 +31,9 @@ Generate Cloudflare runtime bindings from `wrangler.jsonc`, then typecheck them 
 ## 2026-09-12 — Serialize cloud acknowledgements through the live repository
 
 The handoff continuation authorizes useful local coordinator/failure-injection work when staging is unavailable. Implemented that bounded AT-P4-01/02 slice without enabling account UI or moving preview data. Journal writes and sync persistence now share a repository queue; live memory inherits committed acknowledgement metadata before another journal write can restore stale fields. Acknowledged is an internal write-receipt state, not a “Synced” UI claim. The external account/session lifecycle, coordinated logout and hosted verification remain pending. See [coordinator evidence](verification/COORDINATOR_2026-09-12.md).
+
+## 2026-09-12 — Merge remote approved POC and plan adoption
+
+The user explicitly requested commit, push and merge to main. Fetch found remote main at `7adba39`, containing approved writing POC `2d7103e` and canonical-plan adoption `ee76008`, while the local implementation descended from `6075baa`. The earlier local-only baseline inspection therefore missed existing remote work. Preserve both histories with a merge; do not force-push.
+
+Retain the newer notebook entry, dependency versions, storage/sync implementation and verification scripts. Keep the approved POC source and original regression suite independently runnable at development-only `/poc.html`, adding its Lora font dependency and `test:poc` script. Scope the POC Playwright configuration to its own suite so it cannot accidentally run notebook fixtures. Retain remote canonical plan adoption annotations and update current hash references. The newer Inter notebook and approved Lora POC still need founder behavior reconciliation; merging does not certify that product decision or any release gate.

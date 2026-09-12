@@ -57,3 +57,9 @@ No hosted Supabase project, production email, deployment, backup scheduler, or r
 - [Third-party licenses](docs/THIRD_PARTY_LICENSES.md)
 
 The original Ulysses reference images remain untouched. The UI uses Inter, bundled locally under the SIL Open Font License; app icons come from Lucide.
+
+## Preserved approved writing POC
+
+The remote approved session-only POC is retained at `http://127.0.0.1:5173/poc.html` during development, with its original Lora typography and writing behavior. Its source remains in `src/App.tsx`, `src/writing.ts`, `src/sample.ts`, and `src/styles.css`; `src/poc-main.tsx` is its separate entry. It does not use notebook storage and is not included in the production notebook bundle. Run its original Chromium/WebKit checks with `npm run test:poc` (install both Playwright browsers first). The main `/` notebook uses the newer `src/app` and `src/editor` implementation.
+
+The merge retains the remote canonical plan's repository-adoption note. The remote POC and newer notebook differ in typography and scroll implementation; their coexistence preserves the approved reference without claiming those differences have received founder approval.

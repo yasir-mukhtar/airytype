@@ -1,6 +1,6 @@
 # AiryType status
 
-Sprint: 12 September 2026, 13:16–13:58 Asia/Jakarta. Starting branch `main`, commit `6075baa`. Canonical plan: v1.2, unchanged SHA-256 `177c96ad2cc18bc062f9159461dc1a528f8a45eead87b7fe1550d47a6ff50ae1`.
+Sprint: 12 September 2026, 13:16–13:58 Asia/Jakarta. Starting branch `main`, commit `6075baa`. Original supplied plan SHA-256: `177c96ad2cc18bc062f9159461dc1a528f8a45eead87b7fe1550d47a6ff50ae1`. The merge adopts remote v1.2 repository annotations; current SHA-256: `5e77e7fa86054681f0a7ad60133729468c1e347fd03a7fa1ca9f25038ffc8634`.
 
 **Runnable local development preview; the end-to-end public-release plan is not complete. No production deployment or beta release is claimed.**
 
@@ -8,7 +8,7 @@ Sprint: 12 September 2026, 13:16–13:58 Asia/Jakarta. Starting branch `main`, c
 
 Implemented the outside-React account write coordinator and serialized repository/journal acknowledgement boundary for AT-P4-01/02. Verified late-generation preservation, exact retry, atomic rollback, session fencing and bounded request concurrency. `npm run check` now passes **93 tests in 12 files**, types, lint and build; production notebook **8/8** and native Chromium journal **1/1** pass. See [current evidence and remaining integration](verification/COORDINATOR_2026-09-12.md).
 
-No staging settings are configured. Account UI, verified-session namespace lifecycle, coordinated logout/cancellation, remote freshness/reconciliation and hosted create/read/reload remain pending. The notebook is still local-only; gates remain open. Changes from this continuation are not committed or pushed.
+No staging settings are configured. Account UI, verified-session namespace lifecycle, coordinated logout/cancellation, remote freshness/reconciliation and hosted create/read/reload remain pending. The notebook is still local-only; gates remain open. Merged verification also passes the preserved POC’s 20 Chromium and 19 WebKit checks, with one intentional composition skip. Coordinator implementation commit: `5eae892`. The following integration merge incorporates remote main and preserves its approved POC; consult Git for publication state.
 
 ## Implementation
 

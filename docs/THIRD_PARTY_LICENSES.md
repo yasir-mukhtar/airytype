@@ -19,9 +19,12 @@ Installed runtime packages were inspected on 12 September 2026. Exact transitive
 | @supabase/supabase-js | 2.116.0 | MIT |
 | Lucide React | 1.45.0 | ISC |
 | @fontsource/inter | 5.3.0 | OFL-1.1 |
+| @fontsource-variable/lora (preserved development POC) | 5.3.0 | OFL-1.1 |
 
 Inter is self-hosted, unmodified, and distributed with its complete original copyright and SIL Open Font License at `public/licenses/Inter-OFL.txt`. It is served at `/licenses/Inter-OFL.txt`. [Inter project](https://rsms.me/inter/).
 
 CodeMirror's shipped TypeScript declarations were used to verify `EditorView.requestMeasure`, wrapped-line boundaries, compartments, scroll handling, and the state API. The installed distributions identify their current upstream repository; an archived mirror was not treated as proof of maintenance status. [CodeMirror reference](https://codemirror.net/docs/ref/).
 
 Cloudflare static routing and runtime bindings were checked against the installed Wrangler schema and generated runtime types. [Workers Static Assets](https://developers.cloudflare.com/workers/static-assets/), [Workers best practices](https://developers.cloudflare.com/workers/best-practices/workers-best-practices/).
+
+The preserved development POC serves the unmodified Lora font. Its original copyright and SIL Open Font License are retained at `public/licenses/Lora-OFL.txt`.

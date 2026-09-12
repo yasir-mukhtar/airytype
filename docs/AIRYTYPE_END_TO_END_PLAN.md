@@ -32,9 +32,11 @@ For the product/build sequence, read §§2, 10 and 14 first. Use §3 when implem
 - Visually inspected `Highlight options.png`, `Fixed scrolling feature.png`, and `Highlight feature - 5 - per sentence.png`. They confirm separate highlight and scrolling controls and sentence-level emphasis. Still images do not establish native timing, selection behavior, or IME behavior.
 - Checked primary technical documentation for browser storage, sentence segmentation, editor APIs, Supabase permissions/realtime/backups, PostgreSQL search, Cloudflare hosting, and transactional email. Source links appear beside the decisions they inform.
 
+**Repository adoption check — 12 September 2026:** remote `main` at [`8870d3b7d4640c87b4364ebcb999eb94585a1c85`](https://github.com/yasir-mukhtar/airytype/commit/8870d3b7d4640c87b4364ebcb999eb94585a1c85) already contains an approved session-only writing POC. Its `AGENTS.md` and `README.md` were read for this documentation commit. Preserve that implementation and its approved behavior; P0 must reconcile it with the plan, including font and scrolling differences, before scheduling remaining work. The plan's earlier inspection/status statements describe its supplied baseline; this adoption check does not certify phase gates or rerun the README's reported tests.
+
 ### 0.2 How this remains durable
 
-Keep this filename stable. Once adopted, commit it as `docs/AIRYTYPE_END_TO_END_PLAN.md`. Keep the raw notes as historical input, not competing implementation instructions. This deliverable has not been committed or pushed to the repository.
+Keep this filename stable at `docs/AIRYTYPE_END_TO_END_PLAN.md` in the repository. Keep the raw notes as historical input, not competing implementation instructions.
 
 Separate the source of a decision from the evidence needed to release it. Original product requirements remain requirements; limits, defaults, retention, support and business choices introduced by this plan remain proposed baselines until adoption. Record material changes once in `docs/DECISIONS.md`; routine implementation does not need repeated approval.
 

@@ -6,9 +6,11 @@ Updated: 12 September 2026, after the 13:16–13:58 Asia/Jakarta implementation 
 
 The handoff was read and continued on 12 September 2026. New `src/sync/coordinator.ts` and `errors.ts` implement account-scoped committed-generation scheduling, two global requests/one per note, immutable retries and typed pause states. `LocalRepository.sealForSync` / `acknowledgeSync` now serialize journal writes and acknowledgement memory updates. The integration gap described in the original handoff below is addressed at that repository boundary; account UI/session lifecycle and full remote reconciliation are still missing.
 
-Current evidence: [COORDINATOR_2026-09-12.md](docs/verification/COORDINATOR_2026-09-12.md). Final check: 93 tests/12 files, types/lint/build; production notebook 8/8; Chromium journal 1/1, p95 108.4 ms at 100k characters. No staging `.env`, hosted tests or native-device evidence. These continuation changes, including this handoff, are uncommitted and unpushed.
+Current evidence: [COORDINATOR_2026-09-12.md](docs/verification/COORDINATOR_2026-09-12.md). Final check: 93 tests/12 files, types/lint/build; production notebook 8/8; Chromium journal 1/1, p95 108.4 ms at 100k characters. No staging `.env`, hosted tests or native-device evidence. Coordinator implementation is committed as `5eae892`. The integration merge includes remote main at `7adba39`; consult Git for publication state. The remote approved POC is retained separately at `/poc.html` in development.
 
 Next implementation: connect a deliberate verified-account notebook/session owner to the tested coordinator, including synchronous session-loss fencing and pending-work logout cancellation before exposing account switching. Preserve `local-preview`. See the evidence file's remaining integration section before extending the coordinator. The existing local UI is still not connected to Auth/cloud.
+
+The fetched remote history corrects the original sprint’s incomplete baseline inspection: an approved POC already existed on remote main. Read the merged `AGENTS.md`, README and merge record in `docs/DECISIONS.md`. Keep both implementations until founder behavior reconciliation is complete.
 
 ## Start here
 
@@ -33,7 +35,7 @@ The previous sprint's 13:58 deadline has ended. Follow the user's next instructi
 5. [docs/verification/SPRINT_2026-09-12.md](docs/verification/SPRINT_2026-09-12.md) — tests actually run, measurements, fixes and evidence limits.
 6. For cloud work, [supabase/README.md](supabase/README.md); for editor work, [src/editor/README.md](src/editor/README.md).
 
-The canonical plan is copied exactly from the user's supplied file. SHA-256: `177c96ad2cc18bc062f9159461dc1a528f8a45eead87b7fe1550d47a6ff50ae1`. Keep this one plan authoritative rather than creating another implementation plan. Update status and decisions when work materially changes.
+The canonical plan now retains remote main’s repository-adoption annotations. Current SHA-256: `5e77e7fa86054681f0a7ad60133729468c1e347fd03a7fa1ca9f25038ffc8634`. The original supplied-file hash is recorded in historical sprint evidence. Keep this one plan authoritative rather than creating another implementation plan. Update status and decisions when work materially changes.
 
 ## What the user can use now
 
