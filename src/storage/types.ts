@@ -39,6 +39,9 @@ export interface BaseRecord {
   deletedAt: number | null;
   version: ServerVersion;
   epoch: string;
+  kind?: 'normal' | 'recovery';
+  createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface PendingIntent {

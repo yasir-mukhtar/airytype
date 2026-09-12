@@ -39,7 +39,7 @@ Implemented limits include 1 MiB UTF-8 bodies, 200-code-point titles, 1,000 acti
 
 Required work before trusting this as a service:
 
-- Connect and verify the browser coordinator's auth, sealed request, reconciliation and recovery paths against a hosted project using two real sessions. The current user interface may remain a local preview; backend tests do not establish cloud integration.
+- Verify the integrated account notebook against a hosted project using two real sessions. Browser session/auth, sealed request, coherent startup reads and cancellable local-scope logout are connected and tested with mocked HTTP; full reconciliation/recovery remains incomplete. See `docs/verification/ACCOUNTS_2026-09-12.md`. Local browser/SQL tests do not establish hosted behavior.
 - Verify concurrent account locking, two-device CAS races, full-capacity manifest response limits and latency through PostgREST, role grants and Data API configuration on hosted Supabase.
 - Finish deliberate prior-epoch/missing-source recovery, restore-checkpoint-as-new-note and explicit recovery promotion. `recover_note` currently accepts an owned divergent/deleted source with a valid prior source version; a missing source or same-version restored epoch copy remains protected locally and exportable until the corresponding deliberate cloud recovery route is implemented.
 - Add external encrypted deletion receipts, retryable deletion operations, private backup storage, identity sanitization and a rehearsed restore/cutover. Permanent note deletion, account deletion and automatic trash expiry are unavailable. No ordinary RPC can physically purge notes. Trash retains writing until that safe path exists.

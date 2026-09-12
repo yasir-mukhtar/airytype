@@ -2,21 +2,40 @@ import { SyncPause, syncFailure } from './errors';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { BaseRecord, SealedMutation } from '../storage/types';
 import type {
+  AccountManifest,
+  AccountNotebookTransport,
   MutationAcknowledgement,
   ServiceState,
-  SyncTransport,
 } from './protocol';
+import {
+  validateManifest,
+  validateRemoteNote,
+  validateServiceState,
+} from './remote-validation';
 
-export class SupabaseSyncTransport implements SyncTransport {
+export class SupabaseSyncTransport implements AccountNotebookTransport {
   constructor(
     private client: SupabaseClient,
     private accountId: string,
+    private isCurrent: () => boolean = () => true,
   ) {}
 
   async getServiceState(): Promise<ServiceState> {
+    this.assertCurrent();
     const { data, error, status } = await this.client.rpc('get_service_state');
+    this.assertCurrent();
     if (error) throw syncFailure(error, status);
-    return data as ServiceState;
+    return validateServiceState(data);
+  }
+
+  async getManifest(): Promise<AccountManifest> {
+    const authorization = await this.accountAuthorization();
+    const { data, error, status } = await this.client
+      .rpc('list_manifest')
+      .setHeader('Authorization', authorization);
+    this.assertCurrent();
+    if (error) throw syncFailure(error, status);
+    return validateManifest(data);
   }
 
   async send(
@@ -39,6 +58,7 @@ export class SupabaseSyncTransport implements SyncTransport {
         },
       })
       .setHeader('Authorization', authorization);
+    this.assertCurrent();
     if (error) throw syncFailure(error, status);
     return data as MutationAcknowledgement;
   }
@@ -48,17 +68,9 @@ export class SupabaseSyncTransport implements SyncTransport {
     const { data, error, status } = await this.client
       .rpc('get_note', { p_note_id: noteId })
       .setHeader('Authorization', authorization);
+    this.assertCurrent();
     if (error) throw syncFailure(error, status);
-    if (!data) throw new Error('The remote note is missing.');
-    const row = data as {
-      id: string;
-      title: string;
-      body: string;
-      folder_id: string | null;
-      deleted_at: string | null;
-      version: string;
-      epoch: string;
-    };
+    const row = validateRemoteNote(data, noteId);
     return {
       accountId: this.accountId,
       id: row.id,
@@ -68,11 +80,16 @@ export class SupabaseSyncTransport implements SyncTransport {
       deletedAt: row.deleted_at ? Date.parse(row.deleted_at) : null,
       version: row.version,
       epoch: row.epoch,
+      kind: row.kind,
+      createdAt: Date.parse(row.created_at),
+      updatedAt: Date.parse(row.updated_at),
     };
   }
 
   private async accountAuthorization(): Promise<string> {
+    this.assertCurrent();
     const { data, error } = await this.client.auth.getSession();
+    this.assertCurrent();
     if (error || !data.session || data.session.user.id !== this.accountId) {
       throw new SyncPause(
         'session',
@@ -83,5 +100,10 @@ export class SupabaseSyncTransport implements SyncTransport {
     // validation and fetch; its default dynamic token must not upload this body's
     // old account namespace into a newly signed-in account.
     return `Bearer ${data.session.access_token}`;
+  }
+
+  private assertCurrent(): void {
+    if (!this.isCurrent())
+      throw new SyncPause('session', 'This account session has ended.');
   }
 }

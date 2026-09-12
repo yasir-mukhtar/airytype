@@ -1,0 +1,46 @@
+.account-panel .account-form {
+  border-top: 1px solid var(--line);
+  margin-top: 22px;
+  padding-top: 22px;
+}
+
+.account-email {
+  color: #59664e;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.account-panel .account-notice {
+  padding: 12px 14px;
+  background: #f2f3ed;
+  border: 1px solid #e2e7d8;
+  border-radius: 6px;
+  color: #67765a;
+}
+
+.account-form-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.account-form-links .text-button {
+  padding: 4px 0;
+}
+
+.account-panel .account-status p {
+  color: #637754;
+  margin-bottom: 0;
+}
+
+.account-panel .account-error {
+  color: #995f4e;
+  overflow-wrap: anywhere;
+}
+
+.account-panel input:read-only {
+  background: #f0f1eb;
+  color: #727a69;
+}

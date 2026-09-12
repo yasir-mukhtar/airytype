@@ -91,7 +91,10 @@ export class SyncCoordinator {
       if (this.repository.getSnapshot().statuses[note.id] === 'saved-local')
         this.observed.set(note.id, note.generation);
     }
-    for (const intent of intents) this.schedule(intent.noteId);
+    for (const intent of intents) {
+      if (this.states.get(intent.noteId)?.type !== 'paused')
+        this.schedule(intent.noteId);
+    }
     this.observe();
   }
 
@@ -125,6 +128,11 @@ export class SyncCoordinator {
     if (!this.active.has(id) && this.states.get(id)?.type !== 'retry')
       this.setState(id, { type: 'scheduled' });
     this.arm();
+  }
+
+  pauseNote(noteId: string, message: string): void {
+    this.pending.delete(noteId);
+    this.setState(noteId, { type: 'paused', reason: 'conflict', message });
   }
 
   /** Deliberate retry after the cause of a visible pause has been resolved. */

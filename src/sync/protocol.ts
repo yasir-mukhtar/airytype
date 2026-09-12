@@ -29,6 +29,47 @@ export interface SyncTransport {
   getNote(noteId: string): Promise<BaseRecord>;
 }
 
+/** Complete metadata envelope returned by the single-statement list_manifest RPC. */
+export interface ManifestNote {
+  id: string;
+  title: string;
+  folder_id: string | null;
+  version: string;
+  kind: 'normal' | 'recovery';
+  body_bytes: number;
+  deleted_at: string | null;
+  purged_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ManifestFolder {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  version: string;
+  deleted_at: string | null;
+  updated_at: string;
+}
+
+export interface AccountManifest {
+  epoch: string;
+  notes: ManifestNote[];
+  folders: ManifestFolder[];
+  counts: {
+    normal_active: number;
+    normal_retained: number;
+    recovery_retained: number;
+    note_tombstones: number;
+    folder_active: number;
+    folder_tombstones: number;
+  };
+}
+
+export interface AccountNotebookTransport extends SyncTransport {
+  getManifest(): Promise<AccountManifest>;
+}
+
 export type ReconciliationDecision =
   | { type: 'same' }
   | { type: 'replace-clean' }

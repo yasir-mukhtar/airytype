@@ -1296,3 +1296,7 @@ select {
     color: CanvasText;
   }
 }
+
+.session-screen { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: var(--paper, #fafaf8); }
+.session-card { width: min(100%, 480px); padding: 28px; border: 1px solid #deded7; border-radius: 16px; background: white; }
+.session-card h1 { font-size: 22px; margin: 0 0 20px; }

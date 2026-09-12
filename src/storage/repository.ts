@@ -11,6 +11,7 @@ import { OriginWriterLease, type WriterLease } from './writer-lock';
 import {
   LOCAL_ACCOUNT_ID,
   MAX_BODY_BYTES,
+  type BaseRecord,
   type FolderRecord,
   type NotePatch,
   type NoteRecord,
@@ -24,6 +25,8 @@ export interface RepositoryOptions {
   /** Dependency injection for storage and multi-tab failure tests. */
   lease?: WriterLease;
   journalDelayMs?: number;
+  /** Disable local-only organization in a connected staging notebook. */
+  localOrganization?: boolean;
 }
 
 function validateTitle(title: string): void {
@@ -51,6 +54,8 @@ export class LocalRepository {
   private channel: BroadcastChannel | undefined;
   private initialization: Promise<RepositorySnapshot> | undefined;
   private closing = false;
+  private editingPaused = false;
+  private localOrganization: boolean;
   private snapshot: RepositorySnapshot = {
     ready: false,
     mode: 'readonly',
@@ -64,6 +69,7 @@ export class LocalRepository {
 
   constructor(options: RepositoryOptions = {}) {
     this.accountId = options.accountId ?? LOCAL_ACCOUNT_ID;
+    this.localOrganization = options.localOrganization ?? true;
     this.database = new AiryDatabase(options.databaseName);
     this.lease = options.lease ?? new OriginWriterLease();
     this.journal = new BoundedJournal({
@@ -222,6 +228,10 @@ export class LocalRepository {
   private assertEditable(): void {
     this.assertWriter();
     if (this.closing) throw new Error('The writing tab is closing.');
+    if (this.editingPaused)
+      throw new Error(
+        'Writing is paused while the account transition settles.',
+      );
   }
 
   private emit(): void {
@@ -330,7 +340,10 @@ export class LocalRepository {
     if (!current || current.deletedAt)
       throw new Error('This note is missing or in Trash.');
     if (patch.title !== undefined) validateTitle(patch.title);
-    if (patch.folderId !== undefined) this.validateFolder(patch.folderId);
+    if (patch.folderId !== undefined) {
+      this.assertOrganizationAvailable();
+      this.validateFolder(patch.folderId);
+    }
     if (
       Object.entries(patch).every(
         ([key, value]) => current[key as keyof NotePatch] === value,
@@ -352,7 +365,10 @@ export class LocalRepository {
   }
 
   async flush(_noteId?: string): Promise<void> {
-    if (this.snapshot.mode === 'writer') await this.journal.flush();
+    if (this.snapshot.mode === 'writer') {
+      await Promise.all(this.organizationWrites);
+      await this.journal.flush();
+    }
   }
 
   private serializePersistence<T>(action: () => Promise<T>): Promise<T> {
@@ -385,7 +401,8 @@ export class LocalRepository {
     fence: CallbackFence,
     currentFence: () => CallbackFence | null,
   ): Promise<Readonly<SealedMutation>> {
-    this.assertEditable();
+    this.assertWriter();
+    if (this.closing) throw new Error('The writing tab is closing.');
     await this.flush();
     return this.serializePersistence(() =>
       this.syncPersistence(currentFence).seal(noteId, fence),
@@ -407,6 +424,118 @@ export class LocalRepository {
     });
   }
 
+  /** Session transitions pause user mutations, but can still settle queued writes. */
+  setEditingPaused(paused: boolean): void {
+    this.editingPaused = paused;
+  }
+
+  async getPendingSyncCount(): Promise<number> {
+    const ids = await this.database.transaction(
+      'r',
+      this.database.intents,
+      this.database.outbox,
+      async () => {
+        const [intents, requests] = await Promise.all([
+          this.database.intents
+            .where('accountId')
+            .equals(this.accountId)
+            .toArray(),
+          this.database.outbox
+            .where('accountId')
+            .equals(this.accountId)
+            .toArray(),
+        ]);
+        return new Set(
+          [...intents, ...requests].map((record) => record.noteId),
+        );
+      },
+    );
+    for (const note of this.notes.values()) {
+      if (
+        this.committed.get(note.id) !== note.generation ||
+        this.failed.has(note.id)
+      )
+        ids.add(note.id);
+    }
+    return ids.size;
+  }
+
+  /** Install a coherent cloud read only into an absent or clean same-epoch copy.
+   * No editor document or dirty generation is replaced by this operation.
+   */
+  installRemoteNote(
+    base: BaseRecord,
+    isCurrent: () => boolean,
+  ): Promise<boolean> {
+    return this.serializePersistence(async () => {
+      this.assertWriter();
+      if (
+        !isCurrent() ||
+        this.closing ||
+        base.accountId !== this.accountId ||
+        this.accountId === LOCAL_ACCOUNT_ID
+      )
+        throw new Error('The cloud read no longer belongs to this notebook.');
+      const note = await this.database.transaction(
+        'rw',
+        this.database.drafts,
+        this.database.bases,
+        this.database.intents,
+        this.database.outbox,
+        async () => {
+          const key: [string, string] = [this.accountId, base.id];
+          const [accepted, intent, request] = await Promise.all([
+            this.database.bases.get(key),
+            this.database.intents.get(key),
+            this.database.outbox.get(key),
+          ]);
+          const current = this.notes.get(base.id);
+          if (
+            intent ||
+            request ||
+            (current &&
+              (this.committed.get(base.id) !== current.generation ||
+                this.failed.has(base.id) ||
+                !accepted ||
+                accepted.epoch !== base.epoch ||
+                !sameCanonicalState(current, accepted))) ||
+            (accepted &&
+              (accepted.epoch !== base.epoch ||
+                BigInt(accepted.version) > BigInt(base.version)))
+          )
+            return null;
+          if (!isCurrent()) throw new Error('The cloud read session changed.');
+          const next: NoteRecord = {
+            accountId: this.accountId,
+            id: base.id,
+            title: base.title,
+            body: base.body,
+            folderId: base.folderId,
+            deletedAt: base.deletedAt,
+            kind: base.kind ?? current?.kind ?? 'normal',
+            writerId: this.writerId,
+            generation: current?.generation ?? 1,
+            baseVersion: base.version,
+            createdAt: base.createdAt ?? current?.createdAt ?? Date.now(),
+            updatedAt: base.updatedAt ?? current?.updatedAt ?? Date.now(),
+          };
+          await this.database.bases.put(base);
+          await this.database.drafts.put(next);
+          // Typing may have arrived while the transaction awaited storage.
+          if (!isCurrent() || this.notes.get(base.id) !== current)
+            throw new Error('The local note changed during its cloud read.');
+          return next;
+        },
+      );
+      if (!note) return false;
+      // Reflect an already committed transaction even if session loss follows it.
+      this.notes.set(note.id, note);
+      this.committed.set(note.id, note.generation);
+      this.organizationChanged();
+      return true;
+    });
+  }
+
   private validateFolder(folderId: string | null): void {
     if (folderId && !this.folders.has(folderId))
       throw new Error('That folder no longer exists.');
@@ -416,6 +545,7 @@ export class LocalRepository {
 
   private async setTrashed(id: string, trashed: boolean): Promise<void> {
     this.assertEditable();
+    this.assertOrganizationAvailable();
     await this.flush();
     this.assertEditable();
     const current = this.notes.get(id);
@@ -587,8 +717,16 @@ export class LocalRepository {
     await this.lease.release();
   }
 
+  private assertOrganizationAvailable(): void {
+    if (!this.localOrganization)
+      throw new Error(
+        'Folder and Trash changes are not available in the account preview yet.',
+      );
+  }
+
   private async runOrganization<T>(action: () => Promise<T>): Promise<T> {
     this.assertEditable();
+    this.assertOrganizationAvailable();
     const write = this.organizationQueue.then(() => {
       this.assertWriter();
       return action();

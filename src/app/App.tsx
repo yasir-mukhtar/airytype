@@ -36,29 +36,46 @@ import {
 } from 'lucide-react';
 import { createEditor } from '../editor/createEditor';
 import type { EditorPreferences } from '../editor/createEditor';
-import { initializeNotebook, repository } from './notebook';
+import { initializeNotebook, notebookSession } from './notebook';
+import type { LocalRepository } from '../storage/repository';
+import type { NotebookSessionSnapshot } from '../auth/notebook-session';
+import { AccountPanel } from './AccountPanel';
+import {
+  signUp,
+  requestPasswordReset,
+  updatePassword,
+  getSession,
+} from '../auth/session';
 import type { FolderRecord, NoteRecord } from '../storage/types';
 import { downloadMarkdown, downloadLibrary, importMarkdown } from '../export';
 import { readPreferences, writePreferences } from './preferences';
 import { searchNotes, snippet } from './search';
 
 type View = 'all' | 'trash' | 'recovered' | `folder:${string}`;
-type Dialog =
-  'help' | 'export' | 'folder' | 'rename-folder' | 'move' | 'account' | null;
+type Dialog = 'help' | 'export' | 'folder' | 'rename-folder' | 'move' | null;
 const dateLabel = (date: number) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(
     date,
   );
-function lastNoteId() {
+function lastNoteId(accountId: string) {
   try {
-    return localStorage.getItem('airytype:last-note');
+    return localStorage.getItem(
+      accountId === 'local-preview'
+        ? 'airytype:last-note'
+        : `airytype:last-note:${accountId}`,
+    );
   } catch {
     return null;
   }
 }
-function saveLastNote(id: string) {
+function saveLastNote(id: string, accountId: string) {
   try {
-    localStorage.setItem('airytype:last-note', id);
+    localStorage.setItem(
+      accountId === 'local-preview'
+        ? 'airytype:last-note'
+        : `airytype:last-note:${accountId}`,
+      id,
+    );
   } catch {
     /* Optional preference. */
   }
@@ -126,11 +143,184 @@ function Modal({
 }
 
 export function App() {
+  const session = useSyncExternalStore(
+    notebookSession.subscribe,
+    notebookSession.getSnapshot,
+  );
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [storageNotice, setStorageNotice] = useState<string | null>(null);
+  const [recovery, setRecovery] = useState(() =>
+    new URLSearchParams(window.location.search).has('reset-password'),
+  );
+  useEffect(() => {
+    void initializeNotebook(isMobileDevice()).catch(() => {});
+  }, []);
+  useEffect(() => {
+    const persist = () => {
+      void notebookSession
+        .getSnapshot()
+        .repository.flush()
+        .catch(() => {
+          setStorageNotice(
+            'Couldn’t save on this device. Keep this tab open and export your notebook.',
+          );
+        });
+    };
+    const warn = (event: BeforeUnloadEvent) => {
+      const current = notebookSession.getSnapshot().repository.getSnapshot();
+      if (
+        Object.values(current.statuses).some((value) => value !== 'saved-local')
+      ) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    document.addEventListener('visibilitychange', persist);
+    window.addEventListener('pagehide', persist);
+    window.addEventListener('beforeunload', warn);
+    return () => {
+      document.removeEventListener('visibilitychange', persist);
+      window.removeEventListener('pagehide', persist);
+      window.removeEventListener('beforeunload', warn);
+    };
+  }, []);
+  const accountContent = (
+    <>
+      <AccountPanel
+        configured={session.configured}
+        phase={session.phase}
+        email={session.email}
+        message={session.message}
+        pendingCount={session.pendingCount}
+        writer={
+          session.repository.getSnapshot().mode === 'writer' &&
+          !isMobileDevice()
+        }
+        onSignIn={(email, password) => notebookSession.signIn(email, password)}
+        onOpenAccount={() => notebookSession.openAccountNotebook()}
+        onUseLocal={() => notebookSession.useLocalNotebook()}
+        onRequestLogout={() => notebookSession.requestLogout()}
+        onCancelLogout={() => notebookSession.cancelLogout()}
+        onFinishLogout={() => notebookSession.finishLogout()}
+        onExport={async () => {
+          const captured = session.repository.getSnapshot();
+          downloadLibrary(captured.notes, captured.folders, {
+            includeTrash: true,
+          });
+        }}
+        onSignUp={signUp}
+        onRequestPasswordReset={requestPasswordReset}
+        passwordRecovery={recovery}
+        onUpdatePassword={async (password) => {
+          const current = await getSession();
+          if (
+            !current ||
+            (session.accountId && current.user.id !== session.accountId)
+          )
+            throw new Error(
+              'This recovery link belongs to a different or expired account session. Request a fresh link for the same account.',
+            );
+          await updatePassword(password);
+          setRecovery(false);
+          const url = new URL(window.location.href);
+          url.searchParams.delete('reset-password');
+          window.history.replaceState(null, '', url);
+        }}
+      />
+      <button
+        className="text-button full-width"
+        onClick={() => {
+          void (async () => {
+            try {
+              const granted = await navigator.storage?.persist?.();
+              setStorageNotice(
+                granted
+                  ? 'Persistent browser storage granted. Keep exports as a separate backup.'
+                  : 'Persistent storage was not granted. Keep downloading important writing.',
+              );
+            } catch {
+              setStorageNotice(
+                'Persistent storage could not be requested. Your existing drafts are unchanged.',
+              );
+            }
+          })();
+        }}
+      >
+        Request persistent browser storage
+      </button>
+      {storageNotice && (
+        <p role="status" className="fine-print">
+          {storageNotice}
+        </p>
+      )}
+    </>
+  );
+  if (
+    session.phase === 'session-lost' ||
+    session.phase === 'signing-out' ||
+    (session.phase === 'opening' &&
+      session.repository.accountId !== 'local-preview')
+  )
+    return (
+      <main className="session-screen">
+        <section className="session-card">
+          <h1>
+            {session.phase === 'opening'
+              ? 'Opening your account notebook'
+              : 'Your account notebook is paused'}
+          </h1>
+          {accountContent}
+        </section>
+      </main>
+    );
+  return (
+    <>
+      <Notebook
+        key={session.repository.accountId}
+        repository={session.repository}
+        session={session}
+        onAccount={() => setAccountOpen(true)}
+      />
+      {(accountOpen || recovery || session.phase === 'logout-pending') && (
+        <Modal
+          title="Your writing space"
+          onClose={() => {
+            if (session.phase === 'logout-pending')
+              notebookSession.cancelLogout();
+            setAccountOpen(false);
+            setRecovery(false);
+          }}
+        >
+          {accountContent}
+        </Modal>
+      )}
+    </>
+  );
+}
+
+function isMobileDevice(): boolean {
+  return (
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+function Notebook({
+  repository,
+  session,
+  onAccount,
+}: {
+  repository: LocalRepository;
+  session: NotebookSessionSnapshot;
+  onAccount: () => void;
+}) {
   const snapshot = useSyncExternalStore(
     repository.subscribe,
     repository.getSnapshot,
   );
-  const [activeId, setActiveId] = useState<string | null>(lastNoteId);
+  const [activeId, setActiveId] = useState<string | null>(() =>
+    lastNoteId(repository.accountId),
+  );
   const [view, setView] = useState<View>('all');
   const [query, setQuery] = useState('');
   const [preferences, setPreferences] = useState(readPreferences);
@@ -184,7 +374,7 @@ export function App() {
       .then(() => {
         if (mounted) {
           const notes = repository.listNotes();
-          const stored = lastNoteId();
+          const stored = lastNoteId(repository.accountId);
           setActiveId(
             notes.some((note) => note.id === stored)
               ? stored
@@ -208,7 +398,20 @@ export function App() {
   }, [mobile]);
 
   const active = snapshot.notes.find((note) => note.id === activeId);
-  const writable = snapshot.mode === 'writer' && !mobile && !openingNote;
+  const connected = repository.accountId !== 'local-preview';
+  const cloudState = active
+    ? notebookSession.getCloudState(active.id)
+    : undefined;
+  const blocked =
+    cloudState?.type === 'paused' &&
+    ['conflict', 'epoch', 'session', 'protocol'].includes(cloudState.reason);
+  const writable =
+    snapshot.mode === 'writer' &&
+    !mobile &&
+    !openingNote &&
+    !blocked &&
+    (session.phase === 'local' || session.phase === 'account');
+  const canOrganize = writable && !connected;
   const currentFolderId = view.startsWith('folder:') ? view.slice(7) : null;
   const currentFolder = snapshot.folders.find(
     (folder) => folder.id === currentFolderId,
@@ -243,7 +446,17 @@ export function App() {
       ? 'Couldn’t save on this device'
       : status === 'saving'
         ? 'Saving on this device…'
-        : 'Saved on this device';
+        : !connected
+          ? 'Saved on this device'
+          : cloudState?.type === 'acknowledged'
+            ? 'Saved on this device · Cloud save acknowledged'
+            : cloudState?.type === 'paused'
+              ? 'Saved on this device · Sync paused'
+              : cloudState?.type === 'retry'
+                ? 'Saved on this device · Waiting to retry'
+                : cloudState
+                  ? 'Saved on this device · Syncing…'
+                  : 'Saved on this device · Cloud copy checked';
 
   useEffect(() => {
     if (!booted || !editorMount.current || editor.current) return;
@@ -281,7 +494,7 @@ export function App() {
       doc: active.body,
       readOnly: !writable || Boolean(active.deletedAt),
     });
-    saveLastNote(active.id);
+    saveLastNote(active.id, repository.accountId);
   }, [activeId, booted]);
 
   useLayoutEffect(() => {
@@ -301,35 +514,6 @@ export function App() {
     editor.current?.setPreferences(preferences);
     writePreferences(preferences);
   }, [preferences]);
-  useEffect(() => {
-    const persist = () => {
-      void repository
-        .flush()
-        .catch(() =>
-          notify(
-            'Couldn’t save on this device. Keep this tab open and download your writing.',
-          ),
-        );
-    };
-    const warn = (event: BeforeUnloadEvent) => {
-      if (
-        Object.values(repository.getSnapshot().statuses).some(
-          (value) => value !== 'saved-local',
-        )
-      ) {
-        event.preventDefault();
-        event.returnValue = '';
-      }
-    };
-    document.addEventListener('visibilitychange', persist);
-    window.addEventListener('pagehide', persist);
-    window.addEventListener('beforeunload', warn);
-    return () => {
-      document.removeEventListener('visibilitychange', persist);
-      window.removeEventListener('pagehide', persist);
-      window.removeEventListener('beforeunload', warn);
-    };
-  }, [notify]);
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -507,7 +691,7 @@ export function App() {
           <span>FOLDERS</span>
           <IconButton
             label="New folder"
-            disabled={!writable || busy}
+            disabled={!canOrganize || busy}
             onClick={() => {
               setFolderName('');
               setFolderParent('');
@@ -522,7 +706,7 @@ export function App() {
           {!snapshot.folders.length && (
             <button
               className="empty-folders"
-              disabled={!writable}
+              disabled={!canOrganize}
               onClick={() => {
                 setFolderName('');
                 setFolderParent('');
@@ -551,13 +735,17 @@ export function App() {
             <span>A little help</span>
           </button>
           <div className="rail-divider" />
-          <button className="profile" onClick={() => setDialog('account')}>
+          <button className="profile" onClick={() => onAccount()}>
             <span className="avatar">
               <Feather size={17} />
             </span>
             <span>
               <strong>Your writing space</strong>
-              <small>Local development preview</small>
+              <small>
+                {connected
+                  ? (session.email ?? 'Account notebook')
+                  : 'Local development preview'}
+              </small>
             </span>
             <MoreHorizontal size={17} />
           </button>
@@ -617,7 +805,7 @@ export function App() {
           </span>
           {currentFolder ? (
             <button
-              disabled={!writable}
+              disabled={!canOrganize}
               onClick={() => {
                 setFolderName(currentFolder.name);
                 setFolderParent(currentFolder.parentId ?? '');
@@ -716,7 +904,7 @@ export function App() {
           <button
             aria-label="Import Markdown"
             onClick={() => importRef.current?.click()}
-            disabled={!writable || busy}
+            disabled={!canOrganize || busy}
           >
             <ArrowUpFromLine size={14} />
             Import Markdown
@@ -910,7 +1098,7 @@ export function App() {
                     Find in this note
                   </button>
                   <button
-                    disabled={!writable || Boolean(active?.deletedAt)}
+                    disabled={!canOrganize || Boolean(active?.deletedAt)}
                     onClick={() => {
                       setFolderParent(active?.folderId ?? '');
                       setDialog('move');
@@ -932,7 +1120,7 @@ export function App() {
                   <div className="menu-divider" />
                   <button
                     className="danger-text"
-                    disabled={!writable || busy}
+                    disabled={!canOrganize || busy}
                     onClick={() => {
                       if (!active) return;
                       void run(async () => {
@@ -965,6 +1153,15 @@ export function App() {
           </div>
         </header>
 
+        {connected && (
+          <div className="notice" role="status">
+            Account notebook preview. Folder changes, Trash and imports are not
+            available yet.
+            {cloudState?.type === 'paused' && (
+              <span> {cloudState.message}</span>
+            )}
+          </div>
+        )}
         {snapshot.mode !== 'writer' && booted && (
           <div className="notice" role="status">
             {snapshot.mode === 'readonly'
@@ -988,7 +1185,7 @@ export function App() {
           <div className="notice">
             This note is in Trash. Its text is preserved.
             <button
-              disabled={!writable || busy}
+              disabled={!canOrganize || busy}
               onClick={() =>
                 void run(async () => {
                   await repository.restoreNote(active.id);
@@ -1065,7 +1262,7 @@ export function App() {
         <footer className="writing-footer">
           <button
             className={`save-status ${status === 'error' ? 'status-error' : ''}`}
-            onClick={() => setDialog('account')}
+            onClick={() => onAccount()}
           >
             <span
               className={`status-dot ${status === 'saving' ? 'saving' : ''}`}
@@ -1150,11 +1347,17 @@ export function App() {
               <div className="help-row">
                 <CloudOff size={20} />
                 <div>
-                  <h3>This is a local development preview</h3>
+                  <h3>
+                    {connected
+                      ? 'Account notebook preview'
+                      : 'This is a local development preview'}
+                  </h3>
                   <p>
-                    Drafts stay in this browser. Cloud sync, account recovery,
-                    and public sharing are not enabled. Browser data can be
-                    cleared or evicted, so export important writing.
+                    {connected
+                      ? 'Cloud writes show their acknowledgement separately from device saves. Conflict recovery, complete cloud export, and public sharing are still under development.'
+                      : 'Drafts stay in this browser. Open a separate account notebook to use configured cloud storage.'}{' '}
+                    Browser data can be cleared or evicted, so export important
+                    writing.
                   </p>
                 </div>
               </div>
@@ -1170,46 +1373,6 @@ export function App() {
                 Desktop editing is under verification. Native Safari, IME, and
                 assistive-technology checks are still required before beta.
               </p>
-            </div>
-          )}
-          {dialog === 'account' && (
-            <div className="help-content">
-              <div className="account-illustration">
-                <CloudOff size={30} strokeWidth={1.4} />
-              </div>
-              <h3>Saved here, on this device.</h3>
-              <p>
-                This sprint build keeps your drafts in this browser. “Saved on
-                this device” means the local transaction completed; it does not
-                mean your note is in the cloud.
-              </p>
-              <p>
-                Accounts and the cloud protocol are being prepared. They are not
-                connected to this notebook yet. Use one writing tab at a time
-                and download important drafts.
-              </p>
-              <button
-                className="primary-button full-width"
-                onClick={() => setDialog('export')}
-              >
-                <ArrowDownToLine size={16} />
-                Export your notebook
-              </button>
-              <button
-                className="text-button full-width"
-                onClick={() =>
-                  void run(async () => {
-                    const granted = await navigator.storage?.persist?.();
-                    notify(
-                      granted
-                        ? 'This browser granted persistent storage. Downloads are still a useful backup.'
-                        : 'This browser did not grant persistent storage. Keep downloading important writing.',
-                    );
-                  })
-                }
-              >
-                Request persistent browser storage
-              </button>
             </div>
           )}
           {dialog === 'export' && (

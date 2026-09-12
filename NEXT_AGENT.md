@@ -2,6 +2,18 @@
 
 Updated: 12 September 2026, after the 13:16–13:58 Asia/Jakarta implementation sprint.
 
+## Latest implementation — account notebook integration
+
+The user approved writing and then authorized account integration; they confirmed no staging Supabase project exists. Auth/account UI is now wired to the notebook when public staging settings are supplied, with a separate immutable account namespace, origin-writer ownership, cloud startup reads, journal/sealed saves, safe session loss and cancellable local-scope logout. No local-preview drafts upload automatically. Account organization/imports and full recovery remain unavailable. Final checks: 128 tests/15 files, 5 account browser scenarios, 10 editor scenarios and 8 production notebook scenarios pass. See `docs/verification/ACCOUNTS_2026-09-12.md` for conditions and limits; this supersedes the historical disconnected-account statements below.
+
+Entry points: `src/auth/notebook-session.ts` (lifecycle), `notebook-auth.ts` (SDK identity adapter), `src/app/notebook.ts` (runtime assembly), `AccountPanel.tsx` (UI), `src/sync/account-notebook.ts` / `remote-validation.ts` (coherent startup reads). Current local notebook retains the origin lease; account repositories borrow it and cannot independently release it. Session-loss screens retain exporter and unload warnings. Wait/cancel/export are available for pending logout; pending uploads block signout completion and no namespaces are deleted. Local-scope signout is explicit. New account views deliberately wait until startup reads finish before mounting the editor.
+
+Next: configure a separate staging project and test actual Auth/RLS/concurrent CAS/receipts with real users; locally finish foreground freshness and conflict/epoch recovery. User writing approval remains accepted; native Safari/IME and broader durability evidence remain open. This continuation is uncommitted and undeployed. Do not treat mocked Auth browser fixtures as hosted evidence.
+
+## Latest user decision — writing experience approved
+
+On 12 September 2026 the user confirmed “1. Writing experience approved.” after receiving the current notebook browser link and testing backlog. Treat the current notebook writing experience as approved and preserve it during account integration. Do not reopen the founder writing-feel decision by default. Keep the older POC as a reference; no deletion was requested. Native Safari/IME and storage-pressure evidence are still outstanding because the approval specified no browser/device or test conditions. Next implementation: verified-account namespace/session lifecycle and cancellable pending-work logout, then the hosted one-note path. See `docs/DECISIONS.md`.
+
 ## Latest continuation — account write coordinator
 
 The handoff was read and continued on 12 September 2026. New `src/sync/coordinator.ts` and `errors.ts` implement account-scoped committed-generation scheduling, two global requests/one per note, immutable retries and typed pause states. `LocalRepository.sealForSync` / `acknowledgeSync` now serialize journal writes and acknowledgement memory updates. The integration gap described in the original handoff below is addressed at that repository boundary; account UI/session lifecycle and full remote reconciliation are still missing.
@@ -10,7 +22,7 @@ Current evidence: [COORDINATOR_2026-09-12.md](docs/verification/COORDINATOR_2026
 
 Next implementation: connect a deliberate verified-account notebook/session owner to the tested coordinator, including synchronous session-loss fencing and pending-work logout cancellation before exposing account switching. Preserve `local-preview`. See the evidence file's remaining integration section before extending the coordinator. The existing local UI is still not connected to Auth/cloud.
 
-The fetched remote history corrects the original sprint’s incomplete baseline inspection: an approved POC already existed on remote main. Read the merged `AGENTS.md`, README and merge record in `docs/DECISIONS.md`. Keep both implementations until founder behavior reconciliation is complete.
+The fetched remote history corrects the original sprint’s incomplete baseline inspection: an approved POC already existed on remote main. Read the merged `AGENTS.md`, README and merge record in `docs/DECISIONS.md`. The current notebook now has founder writing-experience approval; keep the older POC as a reference.
 
 ## Start here
 
@@ -68,7 +80,7 @@ Important integration gap: `LocalRepository` owns live in-memory drafts/status w
 
 ## Next concrete task
 
-The next gate work is native Safari/IME and founder writing evidence for G1, then storage-pressure/multi-browser evidence for G2. These remain incomplete even though Chromium automation passes. Record what can be tested automatically and what still needs the founder or a native device; do not invent observation results.
+Founder writing-experience approval is recorded. The remaining gate work is native Safari/IME evidence for G1, then storage-pressure/multi-browser evidence for G2. These remain incomplete even though Chromium automation passes. Record what can be tested automatically and what still needs the founder or a native device; do not invent observation results.
 
 The next implementation slice is **P3, AT-P4-01/AT-P4-02: one verified staging account and one note through the final journal → sealed request → CAS RPC → atomic acknowledgement path**. These task IDs begin in P3 and later expand in P4; retain that dependency rather than renumbering them.
 
