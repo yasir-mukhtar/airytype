@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -140,6 +141,7 @@ export function App() {
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openingNote, setOpeningNote] = useState(false);
   const [folderName, setFolderName] = useState('');
   const [folderParent, setFolderParent] = useState('');
   const [includeTrash, setIncludeTrash] = useState(false);
@@ -206,7 +208,7 @@ export function App() {
   }, [mobile]);
 
   const active = snapshot.notes.find((note) => note.id === activeId);
-  const writable = snapshot.mode === 'writer' && !mobile;
+  const writable = snapshot.mode === 'writer' && !mobile && !openingNote;
   const currentFolderId = view.startsWith('folder:') ? view.slice(7) : null;
   const currentFolder = snapshot.folders.find(
     (folder) => folder.id === currentFolderId,
@@ -272,7 +274,7 @@ export function App() {
     // The EditorView lives for the surface lifetime; compartments handle preferences.
   }, [booted]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!editor.current || !active) return;
     editor.current.openNote({
       noteId: active.id,
@@ -282,7 +284,7 @@ export function App() {
     saveLastNote(active.id);
   }, [activeId, booted]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     editor.current?.setReadOnly(
       !writable || !active || Boolean(active.deletedAt),
     );
@@ -360,13 +362,15 @@ export function App() {
 
   function selectNote(note: NoteRecord) {
     if (note.id === activeId) return;
+    setOpeningNote(true);
     void run(async () => {
       await repository.flush();
       setActiveId(note.id);
       setMoreOpen(false);
-    });
+    }).finally(() => setOpeningNote(false));
   }
   function newNote() {
+    setOpeningNote(true);
     void run(async () => {
       await repository.flush();
       const note = await repository.createNote({ folderId: currentFolderId });
@@ -374,7 +378,7 @@ export function App() {
       setQuery('');
       setActiveId(note.id);
       requestAnimationFrame(() => titleRef.current?.focus());
-    });
+    }).finally(() => setOpeningNote(false));
   }
   function chooseView(next: View) {
     setView(next);

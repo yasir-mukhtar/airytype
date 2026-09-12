@@ -32,6 +32,7 @@ npm run check
 npx playwright install chromium
 npm run test:editor
 npm run test:e2e
+npx playwright test --config tests/e2e/production.config.ts
 npx playwright test --config tests/storage/playwright.config.ts
 npm run worker:check
 ```

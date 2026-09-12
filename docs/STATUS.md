@@ -37,6 +37,8 @@ Final browser evidence: 10 editor/app scenarios, 8 notebook scenarios, and 1 jou
 
 ## Next exact work
 
+Sprint implementation commit: `a4625c4`, followed by the final production-regression fix and evidence commit. The compiled production notebook passed the same 8 browser workflow scenarios at 13:57 Jakarta. Local preview was left running at `http://127.0.0.1:5173`. No commits were pushed.
+
 Finish G1 native Safari/IME and founder writing sessions, then G2 storage-pressure/multi-browser evidence. Next implementation task is `AT-P4-01/02` in P3: connect one verified staging account/note through the final journal/sealed request/CAS/atomic ack path, including coordinated same-account session handling and pending-work logout cancellation. Prove two real hosted sessions and anonymous/direct-write denial before extending reconciliation to multiple devices. Preserve the local namespace; transfer only through a deliberate, verified import.
 
 The current safe preview does not require cloud credentials. Completing the hosted slice requires a separately configured staging Supabase project and its public client settings, with actual Auth/email configuration; the frontend must never receive a privileged service key.
