@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AiryType editor verification</title>
+    <style>
+      body {
+        margin: 0;
+        background: #fcfbf9;
+        font-family: Inter, sans-serif;
+      }
+      #editor {
+        height: 650px;
+        width: 780px;
+        margin: 20px auto;
+        border: 1px solid #ddd;
+      }
+      #status {
+        width: 780px;
+        margin: auto;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="editor"></div>
+    <output id="status" aria-live="polite"></output>
+    <script type="module" src="./harness.ts"></script>
+  </body>
+</html>
