@@ -217,3 +217,110 @@ test('batch import reports invalid UTF-8 and exports normalized exact Markdown',
     'Hello 🌱\n\nKeep  spaces.\n',
   );
 });
+
+test('large titles wrap and resize while remaining independent of Markdown', async ({
+  page,
+}) => {
+  const title = page.getByRole('textbox', { name: 'Note title' });
+  const content = page.getByRole('textbox', { name: 'Note content' });
+  const downloadBody = async () => {
+    const event = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download current note' }).click();
+    return readFile((await (await event).path())!, 'utf8');
+  };
+  const originalBody = await downloadBody();
+  const name = 'A longer title that needs room for every thought';
+  await title.fill(name);
+  await page.evaluate(() => document.fonts.ready);
+  await expect
+    .poll(() =>
+      title.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return (
+          element.clientHeight > parseFloat(style.lineHeight) &&
+          element.scrollHeight <= element.clientHeight + 1
+        );
+      }),
+    )
+    .toBe(true);
+  await title.press('Enter');
+  await expect(content).toBeFocused();
+  await page.setViewportSize({ width: 650, height: 850 });
+  await expect(title).toHaveValue(name);
+  await expect
+    .poll(() =>
+      title.evaluate((element) => element.scrollWidth <= element.clientWidth),
+    )
+    .toBe(true);
+  expect(await downloadBody()).toBe(originalBody);
+  await expect(
+    page.getByRole('button', { name: 'Saved on this device', exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(title).toHaveValue(name);
+  expect(await downloadBody()).toBe(originalBody);
+});
+
+test('a matching Markdown title is shown once and the separate note title remains renameable', async ({
+  page,
+}) => {
+  const source =
+    '# A quiet page\n\nA **strong thought** with a [compact link](https://example.com/long/destination).\n';
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'A quiet page.md',
+    mimeType: 'text/markdown',
+    buffer: Buffer.from(source),
+  });
+  await expect(
+    page.getByRole('textbox', { name: 'Note content' }),
+  ).toContainText('A quiet page');
+  await expect(page.locator('.document-heading')).toBeHidden();
+  await expect(page.locator('.airy-heading-1')).toBeVisible();
+  await page.getByRole('button', { name: 'Note actions' }).click();
+  await page.getByRole('button', { name: 'Rename note', exact: true }).click();
+  const title = page.getByRole('textbox', { name: 'Note title' });
+  await expect(title).toBeFocused();
+  await expect(title).toHaveValue('A quiet page');
+  await title.fill('My notebook title');
+  await title.press('Enter');
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download current note' }).click();
+  expect(await readFile((await (await download).path())!, 'utf8')).toBe(source);
+  await expect(
+    page.getByRole('button', { name: 'Saved on this device', exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(title).toHaveValue('My notebook title');
+  await expect(page.locator('.airy-heading-1')).toContainText('A quiet page');
+});
+
+test('compact library keeps folders, account and search reachable without changing the draft', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 650, height: 850 });
+  const content = page.getByRole('textbox', { name: 'Note content' });
+  const before = await content.textContent();
+  const library = page.getByRole('complementary', {
+    name: 'Library navigation',
+  });
+  await expect(library).toBeHidden();
+  await page.getByRole('button', { name: 'Show folders', exact: true }).click();
+  await expect(library).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'New folder', exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Your writing space/ }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: /Find a thought/ }).click();
+  await expect(library).toBeHidden();
+  await expect(
+    page.getByRole('textbox', { name: 'Search this device' }),
+  ).toBeFocused();
+  expect(await content.textContent()).toBe(before);
+  await page.getByRole('button', { name: 'Show folders', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'Close library', exact: true })
+    .click();
+  await expect(library).toBeHidden();
+});

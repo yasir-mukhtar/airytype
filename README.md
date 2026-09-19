@@ -17,7 +17,7 @@ Open `http://127.0.0.1:5173`. Keep that origin stable to keep using the same bro
 
 ## What works in this preview
 
-- Plain Markdown editing with visible wrapped-line or sentence focus, independent top/middle typewriter scrolling, find, undo, and distraction-free writing.
+- Plain Markdown editing with quiet formatting markers, a six-level heading hierarchy, compact links that reveal their source for editing, visible wrapped-line or sentence focus, independent top/middle typewriter scrolling, find, undo, and distraction-free writing.
 - A bounded local journal with truthful saving/error indicators, reload recovery, and an origin-wide writing lock.
 - Notes, nested folders, literal title/body search, moving, Trash and restore.
 - UTF-8 `.md`/`.txt` import; exact current-draft Markdown download; ZIP library export with a manifest, safe folder paths, and optional Trash.
@@ -61,7 +61,7 @@ No hosted Supabase project, production email, deployment, backup scheduler, or r
 - [Editor behavior and limitations](src/editor/README.md)
 - [Third-party licenses](docs/THIRD_PARTY_LICENSES.md)
 
-The original Ulysses reference images remain untouched. The UI uses Inter, bundled locally under the SIL Open Font License; app icons come from Lucide.
+The original Ulysses reference images remain untouched. The notebook uses locally bundled Roboto (regular, bold, and extra-bold) under the SIL Open Font License; app icons come from Lucide. Its white surfaces, neutral controls, centered reading column, and typography follow the design study at `2df1df1`. See [the UI adaptation notes](docs/UI_ADAPTATION.md).
 
 ## Preserved approved writing POC
 

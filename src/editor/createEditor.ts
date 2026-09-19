@@ -35,6 +35,7 @@ import {
   type CompositionSession,
 } from './interactions';
 import { editorTheme, markdownHighlighting } from './theme';
+import { markdownPresentation } from './presentation';
 import {
   defaultEditorPreferences,
   type EditorController,
@@ -82,6 +83,7 @@ export function createEditor(options: EditorOptions): EditorController {
     bracketMatching(),
     markdown(),
     markdownHighlighting,
+    markdownPresentation,
     search({ top: true }),
     keymap.of([
       ...markdownKeymap,

@@ -21,7 +21,9 @@ Installed runtime packages were inspected on 12 September 2026. Exact transitive
 | @fontsource/inter | 5.3.0 | OFL-1.1 |
 | @fontsource-variable/lora (preserved development POC) | 5.3.0 | OFL-1.1 |
 
-Inter is self-hosted, unmodified, and distributed with its complete original copyright and SIL Open Font License at `public/licenses/Inter-OFL.txt`. It is served at `/licenses/Inter-OFL.txt`. [Inter project](https://rsms.me/inter/).
+The notebook now serves the unmodified Roboto regular, bold, and extra-bold fonts from the design study at `2df1df1`. They are bundled in `src/assets/fonts/`, with the complete original copyright and SIL Open Font License at `public/licenses/Roboto-OFL.txt`, served at `/licenses/Roboto-OFL.txt`.
+
+The legacy Inter package and its original license remain in the repository at `public/licenses/Inter-OFL.txt`; the notebook no longer imports it. [Inter project](https://rsms.me/inter/).
 
 CodeMirror's shipped TypeScript declarations were used to verify `EditorView.requestMeasure`, wrapped-line boundaries, compartments, scroll handling, and the state API. The installed distributions identify their current upstream repository; an archived mirror was not treated as proof of maintenance status. [CodeMirror reference](https://codemirror.net/docs/ref/).
 

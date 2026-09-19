@@ -1,4 +1,4 @@
-import '@fontsource/inter/400.css';
+import '../../src/assets/fonts/fonts.css';
 import { createEditor, type EditorHandle } from '../../src/editor/createEditor';
 
 const prose =

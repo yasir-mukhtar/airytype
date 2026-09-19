@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/tests/editor/harness.html');
+  await page.evaluate(() => document.fonts.ready);
   await expect(
     page.getByRole('textbox', { name: 'Note content' }),
   ).toBeVisible();

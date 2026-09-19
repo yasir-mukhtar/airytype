@@ -326,8 +326,13 @@ function Notebook({
   const [preferences, setPreferences] = useState(readPreferences);
   const [distractionFree, setDistractionFree] = useState(false);
   const [railHidden, setRailHidden] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [compactLayout, setCompactLayout] = useState(
+    () => window.matchMedia('(max-width: 900px)').matches,
+  );
   const [appearanceOpen, setAppearanceOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -344,7 +349,7 @@ function Notebook({
   const editorMount = useRef<HTMLDivElement>(null);
   const editor = useRef<ReturnType<typeof createEditor> | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const titleRef = useRef<HTMLInputElement>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const activeRef = useRef(activeId);
   activeRef.current = activeId;
@@ -398,6 +403,49 @@ function Notebook({
   }, [mobile]);
 
   const active = snapshot.notes.find((note) => note.id === activeId);
+  const sourceTitle = active?.body
+    .match(
+      /^(?:[ \t]*\n)* {0,3}#[ \t]+([^\n]+?)(?:[ \t]+#+[ \t]*)?(?:\n|$)/,
+    )?.[1]
+    .trim();
+  const titleInDocument = Boolean(sourceTitle && sourceTitle === active?.title);
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 900px)');
+    const update = () => {
+      setCompactLayout(query.matches);
+      setLibraryOpen(false);
+    };
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, []);
+  useLayoutEffect(() => {
+    const title = titleRef.current;
+    if (!title) return;
+    let disposed = false;
+    const resize = () => {
+      if (disposed) return;
+      // Measure without a temporary scrollbar narrowing the wrapping width.
+      title.style.overflowY = 'hidden';
+      title.style.height = '0px';
+      title.style.height = `${title.scrollHeight}px`;
+      title.style.overflowY = 'auto';
+    };
+    resize();
+    const geometry = () =>
+      `${title.clientWidth}:${getComputedStyle(title).lineHeight}`;
+    let measured = geometry();
+    const observer = new ResizeObserver(() => {
+      if (geometry() === measured) return;
+      measured = geometry();
+      resize();
+    });
+    observer.observe(title);
+    void document.fonts.ready.then(resize);
+    return () => {
+      disposed = true;
+      observer.disconnect();
+    };
+  }, [active?.title, titleInDocument, editingTitle]);
   const connected = repository.accountId !== 'local-preview';
   const cloudState = active
     ? notebookSession.getCloudState(active.id)
@@ -517,6 +565,7 @@ function Notebook({
   useEffect(() => {
     const keyboard = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        setLibraryOpen(false);
         setDistractionFree(false);
         setAppearanceOpen(false);
         setMoreOpen(false);
@@ -529,6 +578,7 @@ function Notebook({
         event.preventDefault();
         setDistractionFree(false);
         setRailHidden(false);
+        setLibraryOpen(false);
         requestAnimationFrame(() => searchRef.current?.focus());
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
@@ -567,6 +617,7 @@ function Notebook({
   function chooseView(next: View) {
     setView(next);
     setQuery('');
+    setLibraryOpen(false);
   }
   function exportCurrent() {
     if (!active) return;
@@ -640,12 +691,31 @@ function Notebook({
 
   return (
     <div
-      className={`workspace ${distractionFree ? 'distraction-free' : ''} ${railHidden ? 'rail-hidden' : ''}`}
+      className={`workspace ${distractionFree ? 'distraction-free' : ''} ${railHidden ? 'rail-hidden' : ''} ${libraryOpen ? 'library-open' : ''}`}
     >
-      <a className="skip-link" href="#writing-title">
+      <a
+        className="skip-link"
+        href="#writing-title"
+        onClick={(event) => {
+          if (titleInDocument && !editingTitle) {
+            event.preventDefault();
+            editor.current?.focus();
+          }
+        }}
+      >
         Skip to writing
       </a>
       <aside className="library-rail" aria-label="Library navigation">
+        {compactLayout && (
+          <div className="library-close">
+            <IconButton
+              label="Close library"
+              onClick={() => setLibraryOpen(false)}
+            >
+              <X size={18} />
+            </IconButton>
+          </div>
+        )}
         <a
           className="brand"
           href="#"
@@ -663,7 +733,10 @@ function Notebook({
         </a>
         <button
           className="search-trigger"
-          onClick={() => searchRef.current?.focus()}
+          onClick={() => {
+            setLibraryOpen(false);
+            searchRef.current?.focus();
+          }}
         >
           <Search size={16} />
           <span>Find a thought</span>
@@ -925,17 +998,24 @@ function Notebook({
               label={
                 distractionFree
                   ? 'Show library'
-                  : railHidden
-                    ? 'Show folders'
-                    : 'Hide folders'
+                  : compactLayout
+                    ? !libraryOpen
+                      ? 'Show folders'
+                      : 'Hide folders'
+                    : railHidden
+                      ? 'Show folders'
+                      : 'Hide folders'
               }
               onClick={() =>
                 distractionFree
                   ? setDistractionFree(false)
-                  : setRailHidden(!railHidden)
+                  : compactLayout
+                    ? setLibraryOpen(!libraryOpen)
+                    : setRailHidden(!railHidden)
               }
             >
-              {distractionFree || railHidden ? (
+              {distractionFree ||
+              (compactLayout ? !libraryOpen : railHidden) ? (
                 <PanelLeftOpen size={18} />
               ) : (
                 <PanelLeftClose size={18} />
@@ -1089,6 +1169,20 @@ function Notebook({
               {moreOpen && (
                 <div className="actions-popover popover">
                   <button
+                    disabled={!writable || Boolean(active?.deletedAt)}
+                    onClick={() => {
+                      setEditingTitle(true);
+                      setMoreOpen(false);
+                      requestAnimationFrame(() => {
+                        titleRef.current?.focus();
+                        titleRef.current?.select();
+                      });
+                    }}
+                  >
+                    <FileText size={15} />
+                    Rename note
+                  </button>
+                  <button
                     onClick={() => {
                       editor.current?.find();
                       setMoreOpen(false);
@@ -1199,24 +1293,31 @@ function Notebook({
         )}
 
         <div className={`document-surface ${!active ? 'no-active-note' : ''}`}>
-          <div className="document-heading">
-            <div className="document-kicker">
-              <span>YOUR WORDS, YOUR SPACE</span>
-              <span className="document-filetype">.md</span>
-            </div>
-            <input
+          <div
+            className="document-heading"
+            hidden={titleInDocument && !editingTitle}
+          >
+            <textarea
               id="writing-title"
               ref={titleRef}
               className="document-title"
               aria-label="Note title"
               placeholder="Untitled"
+              rows={1}
               value={active?.title ?? ''}
               disabled={!active || !writable || Boolean(active.deletedAt)}
+              onBlur={() => setEditingTitle(false)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  editor.current?.focus();
+                }
+              }}
               onChange={(event) => {
                 if (!active) return;
                 try {
                   repository.updateNote(active.id, {
-                    title: event.target.value,
+                    title: event.target.value.replace(/[\r\n]+/g, ' '),
                   });
                 } catch (error) {
                   notify(
