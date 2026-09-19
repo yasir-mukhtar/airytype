@@ -33,11 +33,25 @@ export function searchNotes(notes: NoteRecord[], query: string): NoteRecord[] {
     );
 }
 
-export function snippet(body: string, query = ''): string {
+export function snippet(body: string, query = '', title = ''): string {
   const token = searchTokens(query)[0];
-  const position = token ? body.toLocaleLowerCase().indexOf(token) : 0;
+  let preview = body;
+  if (!token) {
+    // A list preview should add context to the title. Search still uses the
+    // untouched source so literal Markdown queries keep their matching context.
+    const heading =
+      /^(?:[ \t]*\n)* {0,3}#{1,6}[ \t]+([^\n]+?)(?:[ \t]+#+[ \t]*)?(?:\n|$)/u.exec(
+        body,
+      );
+    if (heading) {
+      const rest = body.slice(heading[0].length);
+      preview =
+        heading[1].trim() === title.trim() ? rest : `${heading[1]}\n${rest}`;
+    }
+  }
+  const position = token ? preview.toLocaleLowerCase().indexOf(token) : 0;
   const start = Math.max(0, position - 36);
-  return `${start ? '…' : ''}${body
+  return `${start ? '…' : ''}${preview
     .slice(start, start + 150)
     .replace(/\s+/gu, ' ')
     .trim()}`;

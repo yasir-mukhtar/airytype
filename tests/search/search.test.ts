@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { searchNotes, searchTokens } from '../../src/app/search';
+import { searchNotes, searchTokens, snippet } from '../../src/app/search';
 import type { NoteRecord } from '../../src/storage/types';
 
 function note(
@@ -58,5 +58,40 @@ describe('literal local search', () => {
       'five',
     ]);
     expect(searchTokens('"quoted" % _')).toEqual(['"quoted"', '%', '_']);
+  });
+});
+
+describe('note list previews', () => {
+  it('uses body context instead of repeating the leading title, without changing the note', () => {
+    const noteWithHeading = note(
+      'a',
+      'Morning pages',
+      '\n# Morning pages #\n\nThe light moves across the desk.',
+    );
+    const before = structuredClone(noteWithHeading);
+    expect(snippet(noteWithHeading.body, '', noteWithHeading.title)).toBe(
+      'The light moves across the desk.',
+    );
+    expect(noteWithHeading).toEqual(before);
+    expect(
+      snippet('# A different thought\n\nMore words.', '', 'Morning pages'),
+    ).toBe('A different thought More words.');
+  });
+
+  it('keeps literal source context when searching and leaves escaped and code headings alone', () => {
+    const body = '# Morning pages\n\nThe light moves across the desk.';
+    expect(snippet(body, '#', 'Morning pages')).toBe(
+      '# Morning pages The light moves across the desk.',
+    );
+    expect(searchNotes([note('a', 'Morning pages', body)], '#')).toHaveLength(
+      1,
+    );
+    expect(snippet('\\# A literal hash', '', 'A literal hash')).toBe(
+      '\\# A literal hash',
+    );
+    expect(snippet('    # A code example', '', 'A code example')).toBe(
+      '# A code example',
+    );
+    expect(snippet('# Morning pages\n', '', 'Morning pages')).toBe('');
   });
 });

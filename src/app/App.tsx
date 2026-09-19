@@ -828,7 +828,6 @@ function Notebook({
       <section className="note-panel" aria-label="Notes">
         <header className="note-panel-heading">
           <div>
-            <span className="eyebrow">THE NOTEBOOK</span>
             <h1>{viewTitle}</h1>
             <select
               className="mobile-library-select"
@@ -855,7 +854,7 @@ function Notebook({
           </IconButton>
         </header>
         <div className="note-search">
-          <Search size={15} />
+          <Search size={18} />
           <input
             ref={searchRef}
             aria-label="Search this device"
@@ -888,9 +887,7 @@ function Notebook({
               Manage folder
             </button>
           ) : (
-            <span>
-              Last edited <ChevronDown size={11} />
-            </span>
+            <span>Last edited</span>
           )}
         </div>
         <div className="note-list">
@@ -908,7 +905,12 @@ function Notebook({
                 onClick={() => selectNote(note)}
               >
                 <div className="note-card-title">
-                  {note.title || 'Untitled'}
+                  <span
+                    className="note-card-name"
+                    title={note.title || 'Untitled'}
+                  >
+                    {note.title || 'Untitled'}
+                  </span>
                   {snapshot.statuses[note.id] === 'saving' && (
                     <span
                       className="pending-dot"
@@ -917,26 +919,26 @@ function Notebook({
                   )}
                 </div>
                 <p>
-                  {snippet(note.body, query) ||
+                  {snippet(note.body, query, note.title) ||
                     'A fresh page. See where it takes you.'}
                 </p>
                 <div className="note-card-meta">
-                  <span>{dateLabel(note.updatedAt)}</span>
-                  <span>
-                    {note.folderId ? (
-                      <>
-                        <Folder size={11} />
+                  <time
+                    dateTime={new Date(note.updatedAt).toISOString()}
+                    title={new Date(note.updatedAt).toLocaleString()}
+                  >
+                    {dateLabel(note.updatedAt)}
+                  </time>
+                  {note.folderId && (
+                    <span className="note-card-folder">
+                      <Folder size={12} />
+                      <span>
                         {snapshot.folders.find(
                           (folder) => folder.id === note.folderId,
                         )?.name ?? 'Unfiled'}
-                      </>
-                    ) : (
-                      <>
-                        <FileText size={11} />
-                        Markdown
-                      </>
-                    )}
-                  </span>
+                      </span>
+                    </span>
+                  )}
                 </div>
               </button>
             ))
