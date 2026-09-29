@@ -17,6 +17,8 @@ import {
   ChevronRight,
   CircleHelp,
   CloudOff,
+  Copy,
+  ExternalLink,
   Feather,
   FileText,
   Folder,
@@ -31,6 +33,7 @@ import {
   RotateCcw,
   Search,
   Settings2,
+  Share2,
   Trash2,
   X,
 } from 'lucide-react';
@@ -48,11 +51,13 @@ import {
 } from '../auth/session';
 import type { FolderRecord, NoteRecord } from '../storage/types';
 import { downloadMarkdown, downloadLibrary, importMarkdown } from '../export';
+import { buildPublicationLink } from '../publish/link';
 import { readPreferences, writePreferences } from './preferences';
 import { searchNotes, snippet } from './search';
 
 type View = 'all' | 'trash' | 'recovered' | `folder:${string}`;
-type Dialog = 'help' | 'export' | 'folder' | 'rename-folder' | 'move' | null;
+type Dialog =
+  'help' | 'export' | 'folder' | 'rename-folder' | 'move' | 'publish' | null;
 const dateLabel = (date: number) =>
   new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric' }).format(
     date,
@@ -334,6 +339,7 @@ function Notebook({
   const [moreOpen, setMoreOpen] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [publishLink, setPublishLink] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openingNote, setOpeningNote] = useState(false);
@@ -626,6 +632,37 @@ function Notebook({
       body: editor.current?.getText() ?? active.body,
     });
     notify('Markdown downloaded. Your words, exactly as written.');
+  }
+  function publishCurrent() {
+    if (!active) return;
+    try {
+      setPublishLink(
+        buildPublicationLink(
+          {
+            title: active.title,
+            body: editor.current?.getText() ?? active.body,
+            publishedAt: Date.now(),
+          },
+          window.location.origin,
+        ),
+      );
+      setDialog('publish');
+    } catch (error) {
+      notify(
+        error instanceof Error
+          ? error.message
+          : 'Couldn’t create a link for this note.',
+      );
+    }
+  }
+  async function copyPublishLink() {
+    try {
+      await navigator.clipboard.writeText(publishLink);
+      notify('Link copied. Anyone who has it can read this snapshot.');
+      setDialog(null);
+    } catch {
+      notify('Copy didn’t work here — the link above is ready to select.');
+    }
   }
   async function handleImports(files: FileList | null) {
     if (!files?.length) return;
@@ -1213,6 +1250,16 @@ function Notebook({
                     <ArrowDownToLine size={15} />
                     Download Markdown
                   </button>
+                  <button
+                    disabled={Boolean(active?.deletedAt)}
+                    onClick={() => {
+                      publishCurrent();
+                      setMoreOpen(false);
+                    }}
+                  >
+                    <Share2 size={15} />
+                    Publish note
+                  </button>
                   <div className="menu-divider" />
                   <button
                     className="danger-text"
@@ -1416,7 +1463,9 @@ function Notebook({
                     ? 'Rename folder'
                     : dialog === 'move'
                       ? 'Move this note'
-                      : 'About your writing space'
+                      : dialog === 'publish'
+                        ? 'Publish this note'
+                        : 'About your writing space'
           }
           onClose={() => setDialog(null)}
         >
@@ -1523,6 +1572,49 @@ function Notebook({
                 <ArrowDownToLine size={16} />
                 Download notebook
               </button>
+            </div>
+          )}
+          {dialog === 'publish' && (
+            <div className="help-content">
+              <p>
+                Anyone with the link can read “{active?.title || 'Untitled'}” as
+                a clean, formatted page — read-only, no editing. The note
+                travels inside the link itself; nothing is uploaded anywhere.
+              </p>
+              <label className="field-label" htmlFor="publish-link">
+                Public link
+              </label>
+              <input
+                id="publish-link"
+                className="text-input"
+                readOnly
+                value={publishLink}
+                onFocus={(event) => event.currentTarget.select()}
+                onClick={(event) => event.currentTarget.select()}
+              />
+              <div className="publish-actions">
+                <button
+                  className="primary-button"
+                  onClick={() => void copyPublishLink()}
+                >
+                  <Copy size={15} />
+                  Copy link
+                </button>
+                <a
+                  className="text-button"
+                  href={publishLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink size={14} />
+                  Open page
+                </a>
+              </div>
+              <p className="fine-print">
+                The link carries this exact snapshot — later edits won’t change
+                it, so publish again for a fresh link. To stop sharing, simply
+                stop sharing the link; there is no server copy to delete.
+              </p>
             </div>
           )}
           {(dialog === 'folder' || dialog === 'rename-folder') && (
