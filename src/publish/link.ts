@@ -1,9 +1,10 @@
 import { deflateSync, Inflate, strFromU8, strToU8 } from 'fflate';
 
 /**
- * A published note is a snapshot that travels inside its own link. Nothing is
- * uploaded: the deflate-compressed JSON lives in the fragment of /published.html, so
- * the text is never sent to the server or written to request logs.
+ * A published note is a snapshot: title, body and the publish time. The public
+ * link either carries a short KV token (`#t.…`) when the Worker publication
+ * API answers, or the deflate-compressed snapshot itself (`#v1.…`) as a
+ * serverless fallback — fragments never reach the server or request logs.
  */
 export interface PublicationSnapshot {
   title: string;
@@ -11,7 +12,21 @@ export interface PublicationSnapshot {
   publishedAt: number;
 }
 
+export type PublicationRef =
+  | { kind: 'embedded'; snapshot: PublicationSnapshot }
+  | { kind: 'token'; token: string };
+
+export interface ShareLink {
+  url: string;
+  /** Present for token links; needed to revoke the stored snapshot. */
+  token: string | null;
+  /** True when the note travels inside the link instead of a server copy. */
+  embedded: boolean;
+}
+
 const FORMAT_PREFIX = 'v1.';
+const TOKEN_PREFIX = 't.';
+const TOKEN_SHAPE = /^[0-9a-f]{32}$/;
 
 /** Links longer than this become impractical to share through chat and email. */
 export const MAX_PUBLICATION_URL_LENGTH = 24_000;
@@ -20,6 +35,7 @@ const MAX_COMPRESSED_BYTES = 512 * 1024;
 /** Reader-side inflation ceiling; guards every visitor against expand bombs. */
 const MAX_DECOMPRESSED_BYTES = 2 * 1024 * 1024;
 const CHUNK = 64 * 1024;
+const PUBLISH_TIMEOUT_MS = 6_000;
 
 const B64_URL = /^[A-Za-z0-9_-]+$/;
 
@@ -44,35 +60,124 @@ export function buildPublicationLink(
   return url;
 }
 
-/** Returns the decoded snapshot, or null for any malformed/truncated payload. */
-export function decodePublication(hash: string): PublicationSnapshot | null {
+export function buildTokenLink(token: string, origin: string): string {
+  return `${origin}/published.html#${TOKEN_PREFIX}${token}`;
+}
+
+/**
+ * Prefers a short token link via the Worker's KV store. Falls back to an
+ * embedded link when the API is unreachable (e.g. plain local dev) — the
+ * embedded path may itself throw when the note is too long.
+ */
+export async function createShareLink(
+  snapshot: PublicationSnapshot,
+  origin: string,
+  fetcher: typeof fetch = fetch,
+): Promise<ShareLink> {
+  try {
+    const response = await fetcher(`${origin}/api/publish`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        t: snapshot.title,
+        b: snapshot.body,
+        u: snapshot.publishedAt,
+      }),
+      signal: AbortSignal.timeout(PUBLISH_TIMEOUT_MS),
+      redirect: 'error',
+    });
+    if (response.ok) {
+      const data: unknown = await response.json();
+      const token = (data as { token?: unknown })?.token;
+      if (typeof token === 'string' && TOKEN_SHAPE.test(token))
+        return {
+          url: buildTokenLink(token, origin),
+          token,
+          embedded: false,
+        };
+    }
+  } catch {
+    // The API is optional infrastructure; embedded links keep working.
+  }
+  return {
+    url: buildPublicationLink(snapshot, origin),
+    token: null,
+    embedded: true,
+  };
+}
+
+/** Revokes a token publication. Best-effort; returns whether it succeeded. */
+export async function revokePublication(
+  token: string,
+  origin: string,
+  fetcher: typeof fetch = fetch,
+): Promise<boolean> {
+  if (!TOKEN_SHAPE.test(token)) return false;
+  try {
+    const response = await fetcher(`${origin}/api/publication/${token}`, {
+      method: 'DELETE',
+      signal: AbortSignal.timeout(PUBLISH_TIMEOUT_MS),
+      redirect: 'error',
+    });
+    return response.status === 204 || response.status === 404;
+  } catch {
+    return false;
+  }
+}
+
+/** The snapshot a token link points at, or null on 404/network/schema errors. */
+export async function fetchPublication(
+  token: string,
+  fetcher: typeof fetch = fetch,
+): Promise<PublicationSnapshot | null> {
+  if (!TOKEN_SHAPE.test(token)) return null;
+  try {
+    const response = await fetcher(`/api/publication/${token}`, {
+      signal: AbortSignal.timeout(8_000),
+      redirect: 'error',
+    });
+    if (!response.ok) return null;
+    const data: unknown = await response.json();
+    return parseSnapshot(data);
+  } catch {
+    return null;
+  }
+}
+
+/** Decodes a link fragment into either an embedded snapshot or a token. */
+export function decodePublication(hash: string): PublicationRef | null {
   const encoded = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (encoded.startsWith(TOKEN_PREFIX)) {
+    const token = encoded.slice(TOKEN_PREFIX.length);
+    return TOKEN_SHAPE.test(token) ? { kind: 'token', token } : null;
+  }
   if (!encoded.startsWith(FORMAT_PREFIX)) return null;
   const compressed = fromBase64Url(encoded.slice(FORMAT_PREFIX.length));
   if (!compressed || compressed.length > MAX_COMPRESSED_BYTES) return null;
   const json = inflateBounded(compressed, MAX_DECOMPRESSED_BYTES);
   if (!json) return null;
   try {
-    const parsed: unknown = JSON.parse(json);
-    if (
-      typeof parsed !== 'object' ||
-      parsed === null ||
-      typeof (parsed as Record<string, unknown>).b !== 'string' ||
-      ((parsed as Record<string, unknown>).t !== undefined &&
-        typeof (parsed as Record<string, unknown>).t !== 'string') ||
-      ((parsed as Record<string, unknown>).u !== undefined &&
-        typeof (parsed as Record<string, unknown>).u !== 'number')
-    )
-      return null;
-    const record = parsed as { t?: string; b: string; u?: number };
-    return {
-      title: record.t ?? '',
-      body: record.b,
-      publishedAt: record.u ?? 0,
-    };
+    const snapshot = parseSnapshot(JSON.parse(json));
+    return snapshot ? { kind: 'embedded', snapshot } : null;
   } catch {
     return null;
   }
+}
+
+function parseSnapshot(value: unknown): PublicationSnapshot | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const record = value as { t?: unknown; b?: unknown; u?: unknown };
+  if (
+    typeof record.b !== 'string' ||
+    (record.t !== undefined && typeof record.t !== 'string') ||
+    (record.u !== undefined && typeof record.u !== 'number')
+  )
+    return null;
+  return {
+    title: record.t ?? '',
+    body: record.b,
+    publishedAt: record.u ?? 0,
+  };
 }
 
 function toBase64Url(bytes: Uint8Array): string {

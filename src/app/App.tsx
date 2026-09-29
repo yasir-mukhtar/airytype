@@ -51,7 +51,7 @@ import {
 } from '../auth/session';
 import type { FolderRecord, NoteRecord } from '../storage/types';
 import { downloadMarkdown, downloadLibrary, importMarkdown } from '../export';
-import { buildPublicationLink } from '../publish/link';
+import { createShareLink, revokePublication } from '../publish/link';
 import { readPreferences, writePreferences } from './preferences';
 import { searchNotes, snippet } from './search';
 
@@ -340,6 +340,7 @@ function Notebook({
   const [editingTitle, setEditingTitle] = useState(false);
   const [dialog, setDialog] = useState<Dialog>(null);
   const [publishLink, setPublishLink] = useState('');
+  const [publishToken, setPublishToken] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [openingNote, setOpeningNote] = useState(false);
@@ -635,25 +636,50 @@ function Notebook({
   }
   function publishCurrent() {
     if (!active) return;
-    try {
-      setPublishLink(
-        buildPublicationLink(
-          {
-            title: active.title,
-            body: editor.current?.getText() ?? active.body,
-            publishedAt: Date.now(),
-          },
+    const snapshot = {
+      title: active.title,
+      body: editor.current?.getText() ?? active.body,
+      publishedAt: Date.now(),
+    };
+    setPublishLink('');
+    setPublishToken(null);
+    setDialog('publish');
+    void run(async () => {
+      try {
+        const share = await createShareLink(
+          snapshot,
           window.location.origin,
-        ),
+        );
+        setPublishLink(share.url);
+        setPublishToken(share.token);
+      } catch (error) {
+        setDialog(null);
+        notify(
+          error instanceof Error
+            ? error.message
+            : 'Couldn’t create a link for this note.',
+        );
+      }
+    });
+  }
+  function revokePublishLink() {
+    if (!publishToken) return;
+    const token = publishToken;
+    void run(async () => {
+      const revoked = await revokePublication(
+        token,
+        window.location.origin,
       );
-      setDialog('publish');
-    } catch (error) {
       notify(
-        error instanceof Error
-          ? error.message
-          : 'Couldn’t create a link for this note.',
+        revoked
+          ? 'Publication deleted — the link no longer opens this note.'
+          : 'Couldn’t reach the server; the link stays live.',
       );
-    }
+      if (revoked) {
+        setPublishToken(null);
+        setDialog(null);
+      }
+    });
   }
   async function copyPublishLink() {
     try {
@@ -1578,8 +1604,10 @@ function Notebook({
             <div className="help-content">
               <p>
                 Anyone with the link can read “{active?.title || 'Untitled'}” as
-                a clean, formatted page — read-only, no editing. The note
-                travels inside the link itself; nothing is uploaded anywhere.
+                a clean, formatted page — read-only, no editing.{' '}
+                {publishToken
+                  ? 'A snapshot is stored on the server and the link carries only a short token.'
+                  : 'The note travels inside the link itself; nothing is uploaded anywhere.'}
               </p>
               <label className="field-label" htmlFor="publish-link">
                 Public link
@@ -1588,13 +1616,14 @@ function Notebook({
                 id="publish-link"
                 className="text-input"
                 readOnly
-                value={publishLink}
+                value={publishLink || 'Creating link…'}
                 onFocus={(event) => event.currentTarget.select()}
                 onClick={(event) => event.currentTarget.select()}
               />
               <div className="publish-actions">
                 <button
                   className="primary-button"
+                  disabled={!publishLink}
                   onClick={() => void copyPublishLink()}
                 >
                   <Copy size={15} />
@@ -1602,18 +1631,28 @@ function Notebook({
                 </button>
                 <a
                   className="text-button"
-                  href={publishLink}
+                  href={publishLink || undefined}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-disabled={!publishLink}
                 >
                   <ExternalLink size={14} />
                   Open page
                 </a>
+                {publishToken && (
+                  <button
+                    className="text-button"
+                    onClick={revokePublishLink}
+                  >
+                    <Trash2 size={14} />
+                    Revoke
+                  </button>
+                )}
               </div>
               <p className="fine-print">
-                The link carries this exact snapshot — later edits won’t change
-                it, so publish again for a fresh link. To stop sharing, simply
-                stop sharing the link; there is no server copy to delete.
+                {publishToken
+                  ? 'The link points at a stored snapshot — later edits won’t change it. Revoking deletes the stored copy and breaks the link.'
+                  : 'The link carries this exact snapshot — later edits won’t change it, so publish again for a fresh link. To stop sharing, simply stop sharing the link; there is no server copy to delete.'}
               </p>
             </div>
           )}
