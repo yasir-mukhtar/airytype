@@ -16,7 +16,7 @@ const snapshot = {
 describe('publication links', () => {
   it('round-trips a snapshot through its compressed fragment', () => {
     const link = buildPublicationLink(snapshot, 'https://airytype.example');
-    expect(link.startsWith('https://airytype.example/p.html#v1.')).toBe(true);
+    expect(link.startsWith('https://airytype.example/published.html#v1.')).toBe(true);
     expect(decodePublication(new URL(link).hash)).toEqual(snapshot);
   });
 

@@ -2,7 +2,7 @@ import { deflateSync, Inflate, strFromU8, strToU8 } from 'fflate';
 
 /**
  * A published note is a snapshot that travels inside its own link. Nothing is
- * uploaded: the deflate-compressed JSON lives in the fragment of /p.html, so
+ * uploaded: the deflate-compressed JSON lives in the fragment of /published.html, so
  * the text is never sent to the server or written to request logs.
  */
 export interface PublicationSnapshot {
@@ -36,7 +36,7 @@ export function buildPublicationLink(
   snapshot: PublicationSnapshot,
   origin: string,
 ): string {
-  const url = `${origin}/p.html#${encodePublication(snapshot)}`;
+  const url = `${origin}/published.html#${encodePublication(snapshot)}`;
   if (url.length > MAX_PUBLICATION_URL_LENGTH)
     throw new Error(
       'This note is too long to carry inside a shareable link. Download it as Markdown instead.',

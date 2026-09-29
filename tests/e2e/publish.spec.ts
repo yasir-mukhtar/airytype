@@ -20,7 +20,7 @@ test('a published note opens as a read-only formatted page', async ({
   const dialog = page.getByRole('dialog', { name: 'Publish this note' });
   await expect(dialog).toBeVisible();
   const link = await dialog.locator('#publish-link').inputValue();
-  expect(link).toContain('/p.html#v1.');
+  expect(link).toContain('/published.html#v1.');
   await expect(
     dialog.getByRole('link', { name: 'Open page' }),
   ).toHaveAttribute('href', link);
@@ -87,9 +87,9 @@ test('the published page reads cleanly at desktop, tablet, and phone sizes', asy
 test('a damaged or empty link shows a calm unavailable page', async ({
   page,
 }) => {
-  await page.goto('/p.html');
+  await page.goto('/published.html');
   await expect(page.locator('.sheet-unavailable')).toBeVisible();
-  await page.goto('/p.html#v1.corrupted');
+  await page.goto('/published.html#v1.corrupted');
   await expect(
     page.getByText('This page isn’t available'),
   ).toBeVisible();

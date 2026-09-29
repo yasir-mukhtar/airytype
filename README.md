@@ -22,7 +22,7 @@ Open `http://127.0.0.1:5173`. Keep that origin stable to keep using the same bro
 - Notes, nested folders, literal title/body search, moving, Trash and restore.
 - UTF-8 `.md`/`.txt` import; exact current-draft Markdown download; ZIP library export with a manifest, safe folder paths, and optional Trash.
 - Per-browser preferences and read-only mobile behavior. Narrow desktop windows remain writable.
-- Publishing a note into a read-only public link. The snapshot travels deflate-compressed inside the link itself (`/p.html#v1.…`) and renders as formatted typography on a quiet sheet — no upload, no server copy, nothing to edit or revoke. Notes too long for a shareable link are declined with an export suggestion.
+- Publishing a note into a read-only public link. The snapshot travels deflate-compressed inside the link itself (`/published#v1.…`) and renders as formatted typography on a quiet sheet — no upload, no server copy, nothing to edit or revoke. Notes too long for a shareable link are declined with an export suggestion.
 
 Browser storage can be cleared or evicted. Download important writing. “Saved on this device” is a local transaction acknowledgement, not cloud backup or cross-device sync.
 

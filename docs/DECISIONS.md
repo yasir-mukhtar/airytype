@@ -56,7 +56,7 @@ Account folder/Trash/import mutations are disabled until their connected workflo
 
 ## 2026-09-29 — Link-embedded publishing as the first public surface
 
-The user requested publishing a note to a public read-only link with the same typography and a card-on-floor reading layout. No hosted Supabase project exists and the token publication endpoint defaults closed, so the first publishable surface carries the snapshot inside the link: `publish` deflates a `{title, body, publishedAt}` snapshot into the `/p.html#v1.…` fragment and the read page renders it with the same CommonMark parser the editor uses.
+The user requested publishing a note to a public read-only link with the same typography and a card-on-floor reading layout. No hosted Supabase project exists and the token publication endpoint defaults closed, so the first publishable surface carries the snapshot inside the link: `publish` deflates a `{title, body, publishedAt}` snapshot into the `/published#v1.…` fragment and the read page renders it with the same CommonMark parser the editor uses.
 
 This keeps the privacy posture intact — the fragment is never sent to the server or written to request logs — and adds no anonymous write endpoint, quota, or abuse surface while hosting is unprovisioned. Consequences: links carry data (long notes past a 24,000-character link budget are declined with an export suggestion), snapshots are immutable (republish for a fresh link), and there is nothing server-side to unpublish. The token `publish_note`/`read_publication` contract in `supabase/` and the Worker’s `/p/<token>.md` endpoint remain the server path once a hosted project is configured; the read page, codec, and dialog are forward-compatible with swapping link payloads for tokens later.
 
