@@ -18,6 +18,16 @@ Implemented the outside-React account write coordinator and serialized repositor
 
 Historical coordinator-only boundary below is superseded by the account integration section above. No staging settings are configured; full remote freshness/reconciliation and hosted verification remain pending. The notebook is still local-only; gates remain open. Merged verification also passes the preserved POC’s 20 Chromium and 19 WebKit checks, with one intentional composition skip. Coordinator implementation commit: `5eae892`. The following integration merge incorporates remote main and preserves its approved POC; consult Git for publication state.
 
+## Short publish links — 29 September 2026 (paused)
+
+**Objective.** Published-note links were ~800 characters because the note snapshot travelled inside the URL fragment (`/published#v1.…`). The user asked for shorter generated links, to be live on `airytype.luncur.in`.
+
+**Done.** Snapshots now store server-side in a Cloudflare KV namespace (`PUBLICATIONS`, id `ff72248839d346a6b5e7f7e43d79fd8d`) via a new Worker API — `POST /api/publish`, `GET`/`DELETE /api/publication/<token>` — and the link carries only a 128-bit token (`/published#t.…`, ~90 characters). The dialog gained a Revoke action; the embedded `#v1.` format remains the fallback when the API is unreachable. Bounds: 1 MiB snapshot / 1.4 MB request caps, strict token shape, 20 publishes/min per client, `no-store`/`noindex`. Merged via PR #4 → `694171a`; deployed to `airytype-preview` version `94f32bc4`. Verified: 170 unit tests, 5 publish e2e, 16 notebook e2e, 14 editor tests, worker dry run, desktop/tablet/phone screenshots, and a live real-browser publish → short link → reader → revoke cycle.
+
+**Paused at.** `airytype.luncur.in` does **not** serve this code — it returns an older bundle (`main-BHstOMs9.js`, `connect-src 'none'` on `/published`, `Not found.` on `/api/publish`). The `luncur.in` zone is in a **different Cloudflare account**; this login (`ux@inadigital.co.id`, account `775933db`) only has `airytype-preview` + `sandbox-chip` and no worker domains. The luncur.in deployment predates this work and was likely created manually in the dashboard or on another machine; it is not referenced anywhere in this repo.
+
+**Next.** Locate the worker serving `airytype.luncur.in` (dashboard account switcher → Workers & Pages → Domains & Routes, or the `luncur.in` zone → Workers Routes). Then either (a) authenticate wrangler to that account — `npx wrangler login` or `CLOUDFLARE_API_TOKEN` + account ID — create a KV namespace **in that account** (the namespace ID in `wrangler.jsonc` is account-scoped) and deploy the same commit, or (b) move the `luncur.in` zone into the ux@inadigital account and attach `airytype.luncur.in` as a custom domain on `airytype-preview`. Open question for that worker: its name and whether it should share this repo's `wrangler.jsonc` via an `env` block.
+
 ## Implementation
 
 | Work | State | Evidence / remaining boundary |
