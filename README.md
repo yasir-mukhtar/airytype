@@ -22,6 +22,7 @@ Open `http://127.0.0.1:5173`. Keep that origin stable to keep using the same bro
 - Notes, nested folders, literal title/body search, moving, Trash and restore.
 - UTF-8 `.md`/`.txt` import; exact current-draft Markdown download; ZIP library export with a manifest, safe folder paths, and optional Trash.
 - Per-browser preferences and read-only mobile behavior. Narrow desktop windows remain writable.
+- Publishing a note into a read-only public link. The snapshot travels deflate-compressed inside the link itself (`/p.html#v1.…`) and renders as formatted typography on a quiet sheet — no upload, no server copy, nothing to edit or revoke. Notes too long for a shareable link are declined with an export suggestion.
 
 Browser storage can be cleared or evicted. Download important writing. “Saved on this device” is a local transaction acknowledgement, not cloud backup or cross-device sync.
 
@@ -42,7 +43,7 @@ npm run worker:check
 
 ## Cloud foundation
 
-Three additive migrations implement owner-isolated private records, locked version checks, idempotent request receipts, coherent snapshot reads, organization, search, checkpoints, and explicit publication snapshots. The Worker provides a narrow plaintext publication endpoint that defaults closed. Auth helpers and a session-fenced Supabase transport are included. See [the backend contract](supabase/README.md).
+Three additive migrations implement owner-isolated private records, locked version checks, idempotent request receipts, coherent snapshot reads, organization, search, checkpoints, and explicit publication snapshots. The Worker provides a narrow plaintext publication endpoint that defaults closed; the token-based `/p/<token>.md` path remains the future server route, while today’s Publish action embeds its snapshot in the reader link instead. Auth helpers and a session-fenced Supabase transport are included. See [the backend contract](supabase/README.md).
 
 Copy `.env.example` to `.env` only when configuring a separate staging project. Never put a service-role key in any `VITE_` variable. Those public settings enable the account panel. Sign-in opens a separate account notebook; local-preview notes are never reassigned or uploaded automatically. On reload, use the account panel’s Open account notebook action to deliberately reopen it. Worker settings are configured separately in `wrangler.jsonc`; publication requires both application and server flags. Permanent note/account deletion is unavailable until the external deletion-receipt and recovery path is implemented.
 

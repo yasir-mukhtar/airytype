@@ -989,6 +989,19 @@ select {
 .checkbox-row input {
   accent-color: var(--muted);
 }
+.publish-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 16px;
+}
+.publish-actions .text-button {
+  color: var(--muted);
+}
+#publish-link {
+  font-size: 11px;
+  color: var(--body);
+}
 .export-summary {
   display: flex;
   gap: 10px;
