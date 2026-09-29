@@ -998,6 +998,10 @@ select {
 .publish-actions .text-button {
   color: var(--muted);
 }
+.publish-actions .text-button[aria-disabled='true'] {
+  opacity: 0.42;
+  pointer-events: none;
+}
 #publish-link {
   font-size: 11px;
   color: var(--body);
